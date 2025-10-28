@@ -1,0 +1,2064 @@
+<!doctype html>
+<html lang="en" data-bs-theme="light">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>AlpsAlpine Tracking — Favoriot Multi-Device (v4.19.17)</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+  <style>
+    :root { --sidebar-w: 420px; --nav-h: 56px; --brand-blue:#003399; }
+    html, body { height: 100%; }
+    body { margin: 0; }
+    .appbar { height: var(--nav-h); background: linear-gradient(90deg, var(--brand-blue) 0%, #1f52d8 100%); color:#fff; }
+    .appbar .navbar-brand, .appbar .nav-link, .appbar .small { color:#fff !important; }
+    .btn-theme { background:#fff; color:var(--brand-blue); border: none; }
+    .app-shell { height: calc(100vh - var(--nav-h)); display: grid; grid-template-columns: var(--sidebar-w) 1fr; }
+    .sidebar { border-right: 1px solid var(--bs-border-color); overflow: auto; }
+    .map-wrap { position: relative; height: 100%; min-height: 420px; }
+    #map { position: absolute; inset: 0; }
+    .toolbar { position: absolute; top: .75rem; left: .75rem; right: .75rem; display: flex; justify-content: space-between; gap: .5rem; pointer-events: none; z-index: 900; }
+    .toolbar .btn, .toolbar .btn-group, .toolbar .form-check { pointer-events: auto; }
+    .fab { position: absolute; right: .75rem; bottom: .75rem; z-index: 950; pointer-events: auto; }
+    .shadow-soft { box-shadow: 0 4px 24px rgba(0,0,0,.08); }
+    .code { font-family: ui-monospace, Menlo, Consolas, monospace; }
+    .stat { font-variant-numeric: tabular-nums; }
+    .leaflet-pane.leaflet-labels-pane { z-index: 650; pointer-events: none; }
+    .badge-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:.4rem; flex:0 0 10px; }
+    .menu-scroller { max-height: 280px; overflow:auto; }
+    .menu-item { display:flex; align-items:center; gap:.4rem; padding:.25rem .5rem; border-radius:.4rem; }
+    .menu-item:hover { background: var(--bs-secondary-bg); }
+    .tri-row { border: 1px solid var(--bs-border-color); border-radius:.5rem; padding:.5rem .75rem; }
+    .tri-row+.tri-row { margin-top:.5rem; }
+    .tri-title { font-weight:600; }
+    .link-mini .btn{ padding:.15rem .4rem; font-size:.8rem; }
+    .small-monotext{ font-family: ui-monospace, Menlo, Consolas, monospace; font-size:.85rem; }
+    .zzz{ display:inline-block; margin-left:.35rem; animation:zfloat 1.2s ease-in-out infinite alternate; }
+    @keyframes zfloat{ from{ transform:translateY(0); opacity:.8; } to{ transform:translateY(-3px); opacity:1; } }
+    @media (max-width: 991.98px) {
+      :root { --sidebar-w: 100%; }
+      .app-shell { grid-template-columns: 1fr; }
+      .sidebar { position: absolute; z-index: 1100; width: 100%; max-height: 70vh; background: var(--bs-body-bg); border-bottom: 1px solid var(--bs-border-color); }
+      .map-wrap { height: calc(100vh - var(--nav-h)); }
+    }
+  </style>
+</head>
+<body>
+<nav class="navbar navbar-expand appbar">
+  <div class="container-fluid">
+    <span class="navbar-brand d-flex align-items-center gap-2">
+      <i class="bi bi-broadcast-pin"></i> AlpsAlpine Tracking System 
+    </span>
+    <div class="d-flex align-items-center gap-2">
+      <button id="toggleTheme" class="btn btn-sm btn-theme" type="button" title="Toggle theme"><i class="bi bi-moon-stars"></i></button>
+    </div>
+  </div>
+</nav>
+
+<div class="app-shell">
+  <aside class="sidebar p-3">
+    <ul class="nav nav-pills mb-3" role="tablist">
+      <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#pane-live" type="button"><i class="bi bi-activity me-1"></i> Live</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#pane-trackers" type="button"><i class="bi bi-hdd-network me-1"></i> Trackers</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#pane-beacons" type="button"><i class="bi bi-bezier me-1"></i> Beacons</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#pane-settings" type="button"><i class="bi bi-gear me-1"></i> Settings</button></li>
+    </ul>
+
+    <div class="tab-content">
+      <!-- LIVE -->
+      <div class="tab-pane fade show active" id="pane-live">
+        <div id="alert" class="alert alert-danger d-none" role="alert"></div>
+
+        <div class="card shadow-soft mb-3">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+              <h6 class="card-title mb-2">Devices</h6>
+              <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                  Visible devices
+                </button>
+                <div class="dropdown-menu p-2" style="min-width:320px;">
+                  <div class="d-flex justify-content-between gap-2 mb-2">
+                    <button id="btnSelectAll" class="btn btn-sm btn-outline-secondary">Select all</button>
+                    <button id="btnSelectNone" class="btn btn-sm btn-outline-secondary">Select none</button>
+                  </div>
+                  <div class="menu-scroller" id="visMenu"></div>
+                </div>
+              </div>
+            </div>
+            <ul id="deviceStatus" class="list-group list-compact mt-2"></ul>
+          </div>
+        </div>
+
+        <!-- Trilateration -->
+        <div class="card shadow-soft mb-3">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+              <h6 class="card-title mb-0">Trilateration (Selected devices)</h6>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="centerOnUpdate" checked>
+                <label class="form-check-label" for="centerOnUpdate">Center map after updates</label>
+              </div>
+            </div>
+            <div id="triInfoList" class="mt-2"></div>
+            <div class="row g-2 align-items-end mt-3">
+              <div class="col-8">
+                <label class="form-label small mb-1" for="recordDevice">Record trilat route for</label>
+                <select id="recordDevice" class="form-select form-select-sm"></select>
+              </div>
+              <div class="col-4">
+                <div class="form-check form-switch mt-4">
+                  <input class="form-check-input" type="checkbox" id="recordTrilat">
+                  <label class="form-check-label" for="recordTrilat">Record</label>
+                </div>
+              </div>
+              <div class="col-12 d-grid mt-1">
+                <button id="btnClearTrilatRoute" class="btn btn-outline-danger btn-sm">
+                  <i class="bi bi-trash"></i> Clear route
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card shadow-soft">
+          <div class="card-body">
+            <h6 class="card-title mb-2">Controls</h6>
+
+            <div class="form-check form-switch mb-2">
+              <input class="form-check-input" type="checkbox" id="autorefresh" checked>
+              <label class="form-check-label" for="autorefresh">Auto-refresh (<span id="periodLabel"></span>)</label>
+            </div>
+
+            <div class="row">
+              <div class="col-6">
+                <div class="form-check form-switch mb-2">
+                  <input class="form-check-input" type="checkbox" id="showBeacons" checked>
+                  <label class="form-check-label" for="showBeacons">Show beacon pins</label>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="form-check form-switch mb-2">
+                  <input class="form-check-input" type="checkbox" id="showRanges" checked>
+                  <label class="form-check-label" for="showRanges">Show beacon ranges</label>
+                </div>
+              </div>
+            </div>
+
+            <div class="row g-2 align-items-end">
+              <div class="col-6">
+                <label class="form-label small mb-1" for="rangeScope">Range scope</label>
+                <select id="rangeScope" class="form-select form-select-sm">
+                  <option value="all">All visible devices</option>
+                  <option value="active">Only active device</option>
+                  <option value="specific">Specific device…</option>
+                </select>
+              </div>
+              <div class="col-6">
+                <label class="form-label small mb-1" for="rangeDevice">Specific device</label>
+                <select id="rangeDevice" class="form-select form-select-sm" disabled></select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TRACKERS -->
+      <div class="tab-pane fade" id="pane-trackers">
+        <div class="card shadow-soft">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between">
+              <h6 class="card-title mb-0">Manage Trackers</h6>
+              <div class="btn-group btn-group-sm">
+                <button id="btnExportTrackers" class="btn btn-outline-secondary"><i class="bi bi-box-arrow-up"></i> Export</button>
+                <button id="btnImportTrackers" class="btn btn-outline-secondary"><i class="bi bi-box-arrow-in-down"></i> Import</button>
+              </div>
+            </div>
+
+            <div class="row g-2 align-items-end mt-2">
+              <div class="col-6">
+                <label class="form-label small mb-1">Device ID</label>
+                <input id="devId" type="text" class="form-control form-control-sm" placeholder="TRA... or TRA...@user">
+              </div>
+              <div class="col-6">
+                <label class="form-label small mb-1">Name</label>
+                <input id="devName" type="text" class="form-control form-control-sm" placeholder="Tracker A">
+              </div>
+              <div class="col-12 d-grid">
+                <button id="btnAddDevice" class="btn btn-success btn-sm"><i class="bi bi-plus-circle"></i> Add</button>
+              </div>
+            </div>
+
+            <div class="d-flex align-items-center justify-content-between mt-3">
+              <label class="form-label small mb-0 me-2">Search trackers</label>
+              <input id="trackerSearch" class="form-control form-control-sm w-auto" placeholder="Type to filter…">
+            </div>
+
+            <ul id="deviceList" class="list-group list-compact mt-2"></ul>
+            <p class="small text-secondary mt-2 mb-0">If the device id lacks <span class="code">@username</span>, the Username in Settings will be appended for requests.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- BEACONS -->
+      <div class="tab-pane fade" id="pane-beacons">
+        <div class="card shadow-soft mb-3">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between">
+              <h6 class="card-title mb-0">Manage Beacons</h6>
+              <div class="btn-group btn-group-sm">
+                <button id="btnExport" class="btn btn-outline-secondary"><i class="bi bi-box-arrow-up"></i> Export</button>
+                <button id="btnImport" class="btn btn-outline-secondary"><i class="bi bi-box-arrow-in-down"></i> Import</button>
+                <button id="btnClearAll" class="btn btn-outline-danger"><i class="bi bi-trash"></i> Clear</button>
+              </div>
+            </div>
+            <div class="mt-2">
+              <button id="btnPlaceMode" class="btn btn-outline-primary btn-sm btn-toggle" type="button">
+                <i class="bi bi-geo-alt"></i> Place beacon on map
+              </button>
+              <div id="placeHint" class="small text-secondary mt-1 d-none">Click the map to drop a draggable marker, then press “Add / Update Beacon”.</div>
+            </div>
+
+            <div class="row g-2 align-items-end mt-2">
+              <div class="col-6">
+                <label class="form-label small mb-1">Name / SSID</label>
+                <input id="bName" type="text" class="form-control form-control-sm" placeholder="e.g., BC1-F0F5BD...">
+              </div>
+              <div class="col-6">
+                <label class="form-label small mb-1">BSSID (optional)</label>
+                <input id="bBssid" type="text" class="form-control form-control-sm" placeholder="F0F5BD558985 or F0:F5:BD:55:89:85">
+              </div>
+              <div class="col-6">
+                <label class="form-label small mb-1">Latitude</label>
+                <input id="bLat" type="number" step="any" class="form-control form-control-sm" placeholder="Click map to fill">
+              </div>
+              <div class="col-6">
+                <label class="form-label small mb-1">Longitude</label>
+                <input id="bLon" type="number" step="any" class="form-control form-control-sm" placeholder="Click map to fill">
+              </div>
+              <div class="col-12 d-grid mt-1">
+                <button id="btnAddBeacon" class="btn btn-success btn-sm"><i class="bi bi-plus-circle"></i> Add / Update Beacon</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card shadow-soft mb-3">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between">
+              <h6 class="card-title mb-0">Saved Beacons</h6>
+              <input id="beaconSearch" class="form-control form-control-sm w-auto" placeholder="Search">
+            </div>
+            <ul id="beaconList" class="list-group list-compact mt-2"></ul>
+          </div>
+        </div>
+
+        <!-- Scan string tester (toggle-able) -->
+        <div class="card shadow-soft">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between">
+              <h6 class="card-title mb-0">Scan string tester (debug)</h6>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="toggleScanTester">
+                <label class="form-check-label" for="toggleScanTester">Enable</label>
+              </div>
+            </div>
+            <div id="scanTester" class="mt-2 d-none">
+              <label class="form-label small">Paste scan string from device</label>
+              <textarea id="scanInput" class="form-control small-monotext" rows="3" placeholder="[SSID:BC1-... BSSID:.. D:10.5 m][SSID:...]"></textarea>
+
+              <div class="row g-2 align-items-end mt-2">
+                <div class="col-8">
+                  <label class="form-label small" for="scanSource">Source device</label>
+                  <select id="scanSource" class="form-select form-select-sm"></select>
+                </div>
+                <div class="col-4 d-grid">
+                  <button id="btnScanLoad" class="btn btn-outline-secondary btn-sm"><i class="bi bi-download"></i> Load latest</button>
+                </div>
+              </div>
+
+              <div class="row g-2 align-items-center mt-2">
+                <div class="col-12 col-lg-6">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="scanDraw" checked>
+                    <label class="form-check-label" for="scanDraw">Draw ranges on map</label>
+                  </div>
+                </div>
+                <div class="col-12 col-lg-6">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="scanFit">
+                    <label class="form-check-label" for="scanFit">Fit map to drawings</label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="row g-2 align-items-center mt-2">
+                <div class="col-12 col-lg-6">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="scanAutoFill" checked>
+                    <label class="form-check-label" for="scanAutoFill">Auto-fill from selected device</label>
+                  </div>
+                </div>
+                <div class="col-12 col-lg-6">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="scanAutoParse" checked>
+                    <label class="form-check-label" for="scanAutoParse">Auto-parse &amp; draw</label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="d-flex gap-2 mt-2">
+                <button id="btnScanParse" class="btn btn-primary btn-sm"><i class="bi bi-braces"></i> Parse</button>
+                <button id="btnScanClear" class="btn btn-outline-secondary btn-sm"><i class="bi bi-eraser"></i> Clear drawings</button>
+              </div>
+              <div id="scanSummary" class="small text-secondary mt-2">—</div>
+              <pre id="scanParsed" class="mt-1 p-2 bg-body-tertiary border small-monotext" style="max-height:240px; overflow:auto;">—</pre>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- SETTINGS -->
+      <div class="tab-pane fade" id="pane-settings">
+        <div class="card shadow-soft">
+          <div class="card-body">
+            <h6 class="card-title mb-3">Favoriot Settings</h6>
+            <div class="row g-2">
+              <div class="col-12">
+                <label class="form-label small mb-1">Global Read API Key (used by all devices)</label>
+                <input id="favApiKey" type="text" class="form-control form-control-sm" placeholder="Paste your Favoriot Read API Key">
+              </div>
+              <div class="col-6">
+                <label class="form-label small mb-1">Username (for device_developer_id)</label>
+                <input id="favUser" type="text" class="form-control form-control-sm" placeholder="e.g., almadesign">
+              </div>
+              <div class="col-6">
+                <label class="form-label small mb-1">Auto-refresh (seconds)</label>
+                <input id="refreshSec" type="number" min="2" class="form-control form-control-sm" value="8">
+              </div>
+              <div class="col-6">
+                <label class="form-label small mb-1">Auth header</label>
+                <select id="authHeader" class="form-select form-select-sm">
+                  <option value="apikey" selected>apikey: &lt;JWT&gt;</option>
+                  <option value="authorization">Authorization: Bearer &lt;JWT&gt;</option>
+                </select>
+              </div>
+              <div class="col-6">
+                <label class="form-label small mb-1">CORS proxy (optional)</label>
+                <input id="corsProxy" type="text" class="form-control form-control-sm" placeholder="https://cors.isomorphic-git.org/">
+              </div>
+              <div class="col-12 d-grid mt-2">
+                <button id="applyFavoriot" class="btn btn-primary btn-sm"><i class="bi bi-save"></i> Save settings</button>
+              </div>
+            </div>
+
+            <hr>
+            <div class="d-flex align-items-center justify-content-between">
+              <h6 class="card-title mb-0">Backup & Restore</h6>
+              <div class="btn-group btn-group-sm">
+                <button id="btnExportAll" class="btn btn-outline-secondary"><i class="bi bi-download"></i> Export All</button>
+                <button id="btnImportAll" class="btn btn-outline-secondary"><i class="bi bi-upload"></i> Import All</button>
+                <button id="btnMigrateLegacy" class="btn btn-outline-primary"><i class="bi bi-search"></i> Find legacy data (same origin)</button>
+              </div>
+            </div>
+
+            <hr>
+            <p class="small text-secondary mb-0">Tip: run this via a local server (e.g., VS Code “Live Server” or <span class="code">python -m http.server</span>) so downloads and geolocation work perfectly, and your storage origin stays consistent.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+  <main class="map-wrap"><div id="map"></div>
+    <div class="toolbar">
+      <div class="btn-group shadow-soft">
+        <button id="btnRefresh" class="btn btn-sm btn-primary"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+        <button id="btnLocate" class="btn btn-sm btn-outline-light"><i class="bi bi-crosshair"></i> Locate me</button>
+      </div>
+      <div class="form-check form-switch bg-body-tertiary border rounded px-2 py-1 shadow-soft">
+        <input class="form-check-input" type="checkbox" id="enableTri2" checked>
+        <label class="form-check-label small" for="enableTri2">Trilateration</label>
+      </div>
+    </div>
+    <button id="btnLocateFab" class="btn btn-primary rounded-circle fab shadow-soft" title="Locate me (L)">
+      <i class="bi bi-crosshair"></i>
+    </button>
+  </main>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+/* ================= Theme ================= */
+function applyTheme(theme){
+  document.documentElement.setAttribute('data-bs-theme', theme);
+  localStorage.setItem('alps-theme', theme);
+  const btn=document.getElementById('toggleTheme');
+  if(theme==='dark'){ btn.innerHTML='<i class="bi bi-sun"></i>'; btn.title='Switch to light'; }
+  else { btn.innerHTML='<i class="bi bi-moon-stars"></i>'; btn.title='Switch to dark'; }
+}
+(function initTheme(){ const t=localStorage.getItem('alps-theme')||'light'; applyTheme(t); })();
+document.getElementById('toggleTheme').addEventListener('click',()=>{
+  const cur=document.documentElement.getAttribute('data-bs-theme')||'light';
+  applyTheme(cur==='light'?'dark':'light');
+});
+
+/* ================= Storage keys / presets ================= */
+const PRESET_FAVORIOT = { apiKey:'', username:'almadesign', refreshMs:8000, authHeader:'apikey', proxy:'' };
+const PRESET_DEVICES = [ { id:'TRA19888E008ED40@almadesign', name:'Tracker 1' } ];
+const LS_KEYS = {
+  favoriot:'favoriot-config-v4',
+  devices:'favoriot-devices-v4',
+  beacons:'beacons-v1',
+  visible:'visible-devices-v1',
+  triCache:'tri-cache-v1',
+  rangeMode:'range-mode-v1',
+  rangeDevice:'range-device-v1',
+  recordDev:'record-device-v1'
+};
+const LEGACY_KEYS = [
+  {from:'favoriot-config', to:'favoriot-config-v4'},
+  {from:'favoriot-config-v3', to:'favoriot-config-v4'},
+  {from:'devices', to:'favoriot-devices-v4'},
+  {from:'favoriot-devices', to:'favoriot-devices-v4'},
+  {from:'beacons', to:'beacons-v1'},
+  {from:'visible-devices', to:'visible-devices-v1'},
+];
+
+function jget(k, d){ try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }
+function jset(k, v){ localStorage.setItem(k, JSON.stringify(v)); }
+
+// Trilateration cache (persist last-known)
+function loadTriCache(){ return jget(LS_KEYS.triCache, {}); }
+function saveTriCache(obj){ jset(LS_KEYS.triCache, obj); }
+function cacheTriResult(normId, res){
+  if(!res || res.tlat==null || res.tlon==null) return;
+  const c = loadTriCache();
+  c[normId] = { tlat: res.tlat, tlon: res.tlon, rms: res.rms ?? null, time: res.time ?? null };
+  saveTriCache(c);
+}
+
+(function bootstrapPresets(){
+  if(!jget(LS_KEYS.favoriot, null)) jset(LS_KEYS.favoriot, PRESET_FAVORIOT);
+  if(!jget(LS_KEYS.devices, []).length) jset(LS_KEYS.devices, PRESET_DEVICES);
+  if(!localStorage.getItem(LS_KEYS.rangeMode)) localStorage.setItem(LS_KEYS.rangeMode,'all');
+})();
+
+const CONFIG = { trailPoints: 25, trilatMinBeacons: 3, staleMs: 20*60*1000 };
+const SLEEP_GRACE_MS = 20000; // 20s grace after last packet before showing Sleep
+
+/* ================= Map & panes ================= */
+let map;
+try {
+  map = L.map('map', { minZoom:2, maxZoom:22 }).setView([3.1390, 101.6869], 14);
+} catch(e) { console.error('Leaflet init failed', e); }
+const streetsOSM = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'&copy; OpenStreetMap contributors', maxZoom:22, maxNativeZoom:19 }).addTo(map);
+const esriA = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution:'Tiles © Esri', maxZoom:22, maxNativeZoom:19 });
+const esriB = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution:'Tiles © Esri (alt)', maxZoom:22, maxNativeZoom:19 });
+L.Map.addInitHook(function(){ this.createPane('labelsPane'); this.getPane('labelsPane').classList.add('leaflet-labels-pane'); });
+function labels(){ return L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', { attribution:'Labels © CARTO', pane:'labelsPane', maxZoom:22, maxNativeZoom:20 }); }
+function hybrid(img){ const g=L.layerGroup(); img.addTo(g); labels().addTo(g); return g; }
+L.control.layers(
+  { 'Streets (OSM)':streetsOSM, 'Satellite (Esri A)':esriA, 'Satellite (Esri B)':esriB, 'Hybrid (A+labels)': hybrid(L.tileLayer(esriA._url, esriA.options)), 'Hybrid (B+labels)': hybrid(L.tileLayer(esriB._url, esriB.options)) },
+  {}, { collapsed:true, position:'topright' }
+).addTo(map);
+
+map.createPane('rangesPane'); map.getPane('rangesPane').style.zIndex = 350;
+
+let devicesLayer=L.layerGroup().addTo(map);
+let beaconLayer=L.layerGroup().addTo(map);
+let triLayer=L.layerGroup().addTo(map);
+let trilatTrack=L.polyline([], { weight:3, opacity:.9, color:'#c62828' }).addTo(map);
+let testRangesLayer=L.layerGroup().addTo(map); // purple debug circles
+
+const devMarkers=new Map();
+const triMarkers=new Map();
+const rangeByDev=new Map();
+const lastScanByDev=new Map();
+const triResByDev=new Map();
+
+const healthByDev=new Map();
+const batteryByDev=new Map();
+const lastSeenByDev=new Map();
+const stateByDev=new Map();
+const tempByDev=new Map();
+const offlineReasonByDev=new Map();
+const sleepSecByDev=new Map();
+
+let meMarker=null, meCircle=null;
+setTimeout(()=>map.invalidateSize(),150); window.addEventListener('resize',()=>map.invalidateSize());
+
+/* ===== Place-mode (beacons) ===== */
+let placeMode=false;
+let placeMarker=null;
+function setPlaceMode(on){
+  placeMode = !!on;
+  const btn = document.getElementById('btnPlaceMode');
+  const hint = document.getElementById('placeHint');
+  btn.classList.toggle('btn-primary', on);
+  btn.classList.toggle('btn-outline-primary', !on);
+  hint.classList.toggle('d-none', !on);
+  if(!on){
+    if(placeMarker){ map.removeLayer(placeMarker); placeMarker=null; }
+    document.getElementById('bLat').value='';
+    document.getElementById('bLon').value='';
+  }
+}
+document.getElementById('btnPlaceMode').addEventListener('click', ()=> setPlaceMode(!placeMode));
+map.on('click', (e)=>{
+  if(!placeMode) return;
+  const lat=e.latlng.lat, lon=e.latlng.lng;
+  if(!placeMarker){
+    placeMarker=L.marker([lat,lon],{draggable:true}).addTo(map);
+    placeMarker.on('drag', (ev)=>{
+      const ll=ev.target.getLatLng();
+      document.getElementById('bLat').value=ll.lat.toFixed(8);
+      document.getElementById('bLon').value=ll.lng.toFixed(8);
+    });
+  }
+  placeMarker.setLatLng([lat,lon]);
+  document.getElementById('bLat').value=lat.toFixed(8);
+  document.getElementById('bLon').value=lon.toFixed(8);
+});
+
+/* ================= Utils ================= */
+function showErr(msg){
+  const d=document.getElementById('alert');
+  d.textContent=msg;
+  d.classList.remove('d-none');
+  clearTimeout(window._errHide); window._errHide=setTimeout(()=>{ d.classList.add('d-none'); }, 6000);
+}
+function clearErr(){ const d=document.getElementById('alert'); d.classList.add('d-none'); d.textContent=''; }
+function escapeHtml(s){ return (s??'').toString().replace(/[&<>\"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+const R_EARTH=6371000; const toRad=d=>d*Math.PI/180, toDeg=r=>r*180/Math.PI;
+function ll2xy(lat,lon,refLat,refLon){ const x=(lon-refLon)*Math.PI/180*R_EARTH*Math.cos(toRad(refLat)); const y=(lat-refLat)*Math.PI/180*R_EARTH; return [x,y]; }
+function xy2ll(x,y,refLat,refLon){ const lat=refLat+toDeg(y/R_EARTH), lon=refLon+toDeg(x/(R_EARTH*Math.cos(toRad(refLat)))); return [lat,lon]; }
+function solve2x2(M,v){ const [[a,b],[c,d]]=M; const det=a*d-b*c; if(Math.abs(det)<1e-9)return null; return [( d*v[0]-b*v[1])/det, (-c*v[0]+a*v[1])/det]; }
+function colorForIndex(i){ const h=(i*137+120)%360; return `hsl(${h} 70% 45%)`; }
+function normalizeBssid(s){ return (s||'').toUpperCase().replace(/[^0-9A-F]/g,''); }
+function colonizeBssid(s){ const h=normalizeBssid(s); if (h.length!==12) return null; return h.match(/.{2}/g).join(':'); }
+function sameBssid(a,b){ const A=normalizeBssid(a), B=normalizeBssid(b); return A && B && A===B; }
+function prettyBssid(s){ return colonizeBssid(s)||s||''; }
+
+function isStale(normId){ const ts = lastSeenByDev.get(normId); if(!ts) return true; return (Date.now() - ts) >= CONFIG.staleMs; }
+function computeStatus(normId){
+  const last = lastSeenByDev.get(normId);
+  const delta = last ? (Date.now()-last) : Infinity;
+  const sleepSec = sleepSecByDev.get(normId) ?? null;
+  const sleepMs = sleepSec ? sleepSec*1000 : CONFIG.staleMs;
+  const enoughBeacons = (healthByDev.get(normId)!==false);
+  const sleeping = (sleepSec!=null) && delta > SLEEP_GRACE_MS && delta <= sleepMs;
+  const offline = (!enoughBeacons) || (delta > sleepMs);
+  const online = !offline && !sleeping && Number.isFinite(delta) && delta <= SLEEP_GRACE_MS;
+  return { online, sleeping, offline, delta, sleepSec };
+}
+function statusDotColor(normId){ const st=computeStatus(normId); return st.offline ? '#c62828' : (st.sleeping ? '#f9a825' : '#2e7d32'); }
+
+function isChargingState(state){ return /CHARGING/i.test(String(state||'') ) && !/FULLY/i.test(String(state||'')); }
+function batteryBadgeHtml(p, state){
+  if(p==null) return '';
+  const charging = isChargingState(state);
+  const cls = (p<20) ? 'bg-danger' : (p<40 ? 'bg-warning text-dark' : 'bg-success');
+  let icon; if (charging) icon = 'bi-battery-charging';
+  else icon = (p<33) ? 'bi-battery' : (p<66 ? 'bi-battery-half' : 'bi-battery-full');
+  return ` <span class="badge ${cls}"><i class="bi ${icon}"></i> ${Math.round(p)}%</span>`;
+}
+function stateBadgeHtml(state){
+  if(!state) return '';
+  const s = String(state).toUpperCase();
+  if (s === 'FULLYCHARGE' || /FULLY\s*CHARGE/.test(s)) return ` <span class="badge bg-success">FULLYCHARGE</span>`;
+  if (/CHARG/.test(s)) return ` <span class="badge bg-info text-dark">CHARGING</span>`;
+  if (/REMAIN/.test(s)) return ` <span class="badge bg-warning text-dark">REMAINING</span>`;
+  let cls='bg-secondary';
+  if (/(ALERT|CRITICAL|FAULT|PANIC|SOS|ERROR|DANGER)/.test(s)) cls='bg-danger';
+  else if (/(WARN|WARNING|CAUTION|LOW|DEGRADED)/.test(s)) cls='bg-warning text-dark';
+  else if (/(OK|READY|NORMAL|SAFE|ONLINE|GOOD)/.test(s)) cls='bg-success';
+  return ` <span class="badge ${cls}">${escapeHtml(s)}</span>`;
+}
+function normalizeStateToken(s){ if(!s) return ''; const first = String(s).split(/[,;\]]/)[0].trim(); return first.toUpperCase(); }
+function extractState(data, scanStr){
+  const keys=['State','state','status','device_state','deviceStatus','device_status','STATE'];
+  if (data && typeof data === 'object'){
+    for (const k of keys){ if (Object.prototype.hasOwnProperty.call(data, k)){ const v = String(data[k] ?? '').trim(); if (v) return normalizeStateToken(v); } }
+  }
+  const segs = String(scanStr || '').match(/\[[^\]]+\]/g) || [];
+  for (const seg of segs){ const m = seg.match(/\bState\s*[:=]\s*([^\]\s,;]+)/i); if (m && m[1]) return normalizeStateToken(m[1]); }
+  return '';
+}
+function extractTemperature(data, scanStr){
+  if (data && typeof data==='object'){
+    const keys=['Temperature','temperature','temp','Temp','Temp_C','temperature_c','temp_c','tempC','temperatureC'];
+    for (const k of keys){ if (k in data){ const v = parseFloat(String(data[k]).replace(/[^\d.-]/g,'')); if (Number.isFinite(v)) return v; } }
+  }
+  const s = String(scanStr||'');
+  let m = s.match(/\b(?:Temperature|Temp|T)\s*[:=]\s*([-+]?\d+(?:\.\d+)?)\s*°?\s*C\b/i);
+  if (m) return parseFloat(m[1]);
+  for (const seg of (s.match(/\[[^\]]+\]/g)||[])){
+    const m2 = seg.match(/\b(?:Temperature|Temp|T)\s*[:=]\s*([-+]?\d+(?:\.\d+)?)\s*°?\s*C?/i);
+    if (m2) return parseFloat(m2[1]);
+  }
+  return null;
+}
+
+/* ---- FIXED: robust (case/punctuation-insensitive) sleep time parser ---- */
+function extractSleepSec(data, scanStr){
+  // 1) Look directly in JSON keys (case-insensitive, punctuation-insensitive)
+  if (data && typeof data === 'object'){
+    for (const [k,v] of Object.entries(data)){
+      const lk = String(k).toLowerCase().replace(/[^a-z0-9]/g,'');
+      // Accept keys that mention "sleep" and either "sec" or "time"
+      if (lk.includes('sleep') && (lk.includes('sec') || lk.includes('time'))) {
+        const s = String(v).trim();
+        const m = s.match(/([-+]?\d+(?:\.\d+)?)/);
+        if (m){ const n = parseFloat(m[1]); if (Number.isFinite(n) && n>0) return Math.round(n); }
+      }
+      // Also accept compact forms like "sleeptimesec", "sleepsec"
+      if (lk.endsWith('sleeptimesec') || lk.endsWith('sleepsec')){
+        const s = String(v).trim();
+        const m = s.match(/([-+]?\d+(?:\.\d+)?)/);
+        if (m){ const n = parseFloat(m[1]); if (Number.isFinite(n) && n>0) return Math.round(n); }
+      }
+    }
+  }
+  // 2) Try to scrape from free-form scan string, if present
+  const s = String(scanStr||'');
+  let m = s.match(/sleep[_\s-]*time[_\s-]*sec\s*[:=]\s*(\d+)/i)
+        || s.match(/\bsleep\s*[:=]\s*(\d+)\s*s\b/i)
+        || s.match(/\bsleep[_\s-]*sec\s*[:=]\s*(\d+)/i);
+  if (m){ const n = parseFloat(m[1]); if (Number.isFinite(n) && n>0) return Math.round(n); }
+  return null;
+}
+
+function tempHtmlC(temp){ if (temp==null) return ''; const t = Math.round((+temp) * 100) / 100; return ` <span class="badge bg-secondary-subtle text-dark">${t.toFixed(2)}°C</span>`; }
+function isDeviceVisible(normId){ const set=visibleSet(); return set.has(normId); }
+
+/* ================= Favoriot helpers ================= */
+function CFG(){ return jget(LS_KEYS.favoriot, PRESET_FAVORIOT); }
+function saveCFG(c){ jset(LS_KEYS.favoriot, c); }
+function loadDevices(){ return jget(LS_KEYS.devices, []); }
+function saveDevices(list){ jset(LS_KEYS.devices, list); }
+function apiBase(){ return 'https://apiv2.favoriot.com/v2'; }
+function ensureDevId(id){ const cfg = CFG(); if(!id) return ''; return String(id).includes('@') ? id : (cfg.username ? `${id}@${cfg.username}`:id); }
+function defaultProxy(){ return 'https://cors.isomorphic-git.org/'; }
+function withProxy(url, forceDefault=false){
+  const user = (CFG().proxy||'').trim();
+  const p = user || (forceDefault ? defaultProxy() : '');
+  return p ? p.replace(/\/$/,'') + '/' + url : url;
+}
+function headersFor(){
+  const cfg=CFG();
+  const h={'Accept':'application/json','Content-Type':'application/json'};
+  if ((cfg.authHeader||'apikey') === 'authorization') h['Authorization'] = 'Bearer ' + (cfg.apiKey||'').trim();
+  else h['apikey'] = (cfg.apiKey||'').trim();
+  return h;
+}
+function streamsUrl(dev){
+  const enc = encodeURIComponent(ensureDevId(dev.id));
+  return `${apiBase()}/devices/${enc}/streams`;
+}
+
+/* ================= Visibility & persistence ================= */
+function visibleSet(){
+  const arr=jget(LS_KEYS.visible, null);
+  return new Set(Array.isArray(arr)? arr : loadDevices().map(d=>ensureDevId(d.id)));
+}
+function saveVisibleSet(set){ jset(LS_KEYS.visible, Array.from(set)); }
+
+/* ================= UI builders ================= */
+function rebuildRecordDeviceSelect(){
+  const sel=document.getElementById('recordDevice'); sel.innerHTML='';
+  const list=loadDevices();
+  list.forEach((d)=>{ const opt=document.createElement('option'); const norm=ensureDevId(d.id); opt.value=norm; opt.textContent=(d.name? d.name+' • ' : '')+norm; sel.appendChild(opt); });
+  const stored=localStorage.getItem('record-device-v1')||'';
+  if(stored && [...sel.options].some(o=>o.value===stored)) sel.value=stored;
+  else if(sel.options.length){ sel.selectedIndex=0; localStorage.setItem('record-device-v1', sel.value); }
+  sel.onchange=()=> localStorage.setItem('record-device-v1', sel.value);
+}
+function renderVisibilityDropdown(){
+  const menu=document.getElementById('visMenu'); menu.innerHTML='';
+  const list=loadDevices(); const vis=visibleSet();
+  list.forEach((d,i)=>{
+    const norm=ensureDevId(d.id);
+    const id=`vis-${i}`;
+    const row=document.createElement('label'); row.className='menu-item';
+    row.innerHTML=`
+      <span id="vDot-${i}" class="badge-dot" style="background:${statusDotColor(norm)}"></span>
+      <input type="checkbox" class="form-check-input m-0" id="${id}" data-vis-id="${escapeHtml(norm)}" ${vis.has(norm)?'checked':''}>
+      <span class="small">${escapeHtml(d.name||norm)}</span>
+    `;
+    menu.appendChild(row);
+  });
+  menu.onchange=(e)=>{
+    const cb=e.target.closest('input[type="checkbox"][data-vis-id]'); if(!cb) return;
+    const set=visibleSet(); const id=cb.getAttribute('data-vis-id');
+    if(cb.checked) set.add(id); else set.delete(id);
+    saveVisibleSet(set);
+    renderDeviceList();
+    updateDevicesVisibility();
+    renderTriInfoList(true);
+  };
+}
+document.getElementById('btnSelectAll').addEventListener('click', ()=>{
+  const set=new Set(loadDevices().map(d=>ensureDevId(d.id)));
+  saveVisibleSet(set); renderVisibilityDropdown(); renderDeviceList(); updateDevicesVisibility(); renderTriInfoList(true);
+});
+document.getElementById('btnSelectNone').addEventListener('click', ()=>{
+  saveVisibleSet(new Set()); renderVisibilityDropdown(); renderDeviceList(); updateDevicesVisibility(); renderTriInfoList(true);
+});
+
+function rowIdFor(normId){ return 'devrow-' + btoa(normId).replace(/=+$/,''); }
+
+function focusDeviceByIndex(idx){
+  const list=loadDevices(); const dev=list[idx]; if(!dev) return;
+  const tri=triMarkers.get(dev.id);
+  const posTri = tri?.getLatLng ? tri.getLatLng() : null;
+  const devM = devMarkers.get(dev.id);
+  const posDev = devM?.getLatLng ? devM.getLatLng() : null;
+  const norm=ensureDevId(dev.id);
+  const res = triResByDev.get(norm);
+  const ll = posTri || posDev || (res && res.tlat!=null ? L.latLng(res.tlat,res.tlon) : null);
+  if(ll){
+    map.setView(ll, Math.max(map.getZoom(), 17), { animate:true });
+    if(posTri){ tri.openPopup(); } else if(posDev){ devM.openPopup(); }
+  }else{
+    showErr('No position yet for '+norm);
+  }
+}
+
+function renderDeviceList(){
+  const ul=document.getElementById('deviceStatus'); ul.innerHTML='';
+  const list=loadDevices();
+  const vis=visibleSet();
+
+  if(!list.length){
+    ul.innerHTML='<li class="list-group-item small text-secondary">No devices configured.</li>';
+    return;
+  }
+  if(vis.size===0){
+    const li=document.createElement('li');
+    li.className='list-group-item d-flex justify-content-between align-items-center';
+    li.innerHTML=`<div class="small text-secondary">No devices visible — open “Visible devices” or</div>
+      <button id="btnShowAllNow" class="btn btn-sm btn-outline-primary">Show all now</button>`;
+    ul.appendChild(li);
+    li.querySelector('#btnShowAllNow').onclick=()=>{
+      const set=new Set(loadDevices().map(d=>ensureDevId(d.id)));
+      saveVisibleSet(set);
+      renderVisibilityDropdown();
+      renderDeviceList();
+      updateDevicesVisibility();
+      renderTriInfoList(true);
+    };
+    return;
+  }
+
+  list.forEach((d,i)=>{
+    const norm=ensureDevId(d.id);
+    if(!vis.has(norm)) return;
+    const li=document.createElement('li');
+    li.id = rowIdFor(norm);
+    li.dataset.normId = norm;
+    li.className='list-group-item d-flex justify-content-between align-items-center';
+    li.innerHTML=`<div class="me-2">
+      <div class="fw-semibold">
+        <span id="dot-${i}" class="badge-dot" style="background:${statusDotColor(norm)}"></span>
+        ${escapeHtml(d.name||'Device')}
+        <span id="ol-${i}" class="badge bg-secondary-subtle text-dark ms-2">—</span>
+      </div>
+      <div class="text-secondary small">${escapeHtml(norm)}</div>
+      <div class="small" id="st-${i}">—</div>
+      <div class="small text-danger" id="rs-${i}"></div>
+    </div>
+    <div class="btn-group btn-group-sm">
+      <button class="btn btn-outline-secondary" data-find="${i}" title="Find on map"><i class="bi bi-search"></i></button>
+      <button class="btn btn-outline-danger" data-del="${i}" title="Remove device"><i class="bi bi-trash"></i></button>
+    </div>`;
+    ul.appendChild(li);
+  });
+
+  ul.onclick=(e)=>{
+    const btn = e.target.closest('button');
+    if(!btn) return;
+    const find = btn.getAttribute('data-find');
+    const d = btn.getAttribute('data-del');
+    if(find!=null){ focusDeviceByIndex(parseInt(find,10)); }
+    else if(d!=null){
+      const idx=parseInt(d,10); const arr=loadDevices(); const removed=ensureDevId(arr[idx].id); arr.splice(idx,1); saveDevices(arr);
+      const set=visibleSet(); set.delete(removed); saveVisibleSet(set);
+      rebuildRecordDeviceSelect(); renderDeviceList(); renderVisibilityDropdown(); renderTrackerList();
+      fetchAllDevices(); updateDevicesVisibility(); renderTriInfoList(true);
+    }
+  };
+}
+
+/* ================= Tracker list + export/import ================= */
+document.getElementById('btnExportTrackers').addEventListener('click', ()=>{
+  const data = JSON.stringify(loadDevices(), null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'trackers.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+});
+document.getElementById('btnImportTrackers').addEventListener('click', ()=>{
+  const inp = document.createElement('input'); inp.type='file'; inp.accept='.json,application/json';
+  inp.onchange = () => {
+    const file = inp.files && inp.files[0]; if(!file) return;
+    const fr = new FileReader();
+    fr.onload = () => {
+      try{
+        const list = JSON.parse(String(fr.result||'[]'));
+        if(Array.isArray(list)){ saveDevices(list); renderTrackerList(); rebuildRecordDeviceSelect(); renderVisibilityDropdown(); renderDeviceList(); rebuildScanSourceSelect(); fetchAllDevices(); }
+        else alert('Invalid JSON format.');
+      }catch(e){ alert('Failed to parse JSON: '+e.message); }
+    };
+    fr.readAsText(file);
+  };
+  inp.click();
+});
+function renderTrackerList(){
+  const ul=document.getElementById('deviceList'); ul.innerHTML='';
+  const list=loadDevices();
+  const q = (document.getElementById('trackerSearch').value||'').toLowerCase();
+  const filtered = list.filter(d => ((d.name||'')+' '+ensureDevId(d.id)).toLowerCase().includes(q));
+
+  if(!filtered.length){ ul.innerHTML='<li class="list-group-item small text-secondary">No trackers found.</li>'; return; }
+  filtered.forEach((d,i)=>{
+    const id=ensureDevId(d.id);
+    const li=document.createElement('li'); li.className='list-group-item d-flex justify-content-between align-items-center';
+    li.innerHTML = `<div>
+        <div class="fw-semibold">${escapeHtml(d.name||'Tracker')}</div>
+        <div class="text-secondary small">${escapeHtml(id)}</div>
+      </div>
+      <div class="btn-group btn-group-sm">
+        <button class="btn btn-outline-danger" data-del="${id}" title="Remove"><i class="bi bi-trash"></i></button>
+      </div>`;
+    ul.appendChild(li);
+  });
+  ul.onclick=(e)=>{
+    const btn=e.target.closest('button'); if(!btn) return;
+    const delId=btn.getAttribute('data-del');
+    if(delId){
+      const arr=loadDevices(); const idx=arr.findIndex(x=> ensureDevId(x.id)===delId);
+      if(idx>=0){
+        const removed=ensureDevId(arr[idx].id);
+        arr.splice(idx,1); saveDevices(arr);
+        const set=visibleSet(); set.delete(removed); saveVisibleSet(set);
+        rebuildRecordDeviceSelect(); renderDeviceList(); renderVisibilityDropdown(); renderTrackerList();
+        fetchAllDevices(); updateDevicesVisibility(); renderTriInfoList(true);
+      }
+    }
+  };
+}
+document.getElementById('trackerSearch').addEventListener('input', renderTrackerList);
+
+/* ================= Beacons (export/import/CRUD) ================= */
+function loadBeacons(){ return jget(LS_KEYS.beacons, []); }
+function saveBeacons(list){ jset(LS_KEYS.beacons, list); }
+function findBeaconIndexByNameOrBssid(name, bssid){
+  const list=loadBeacons();
+  const nameLc = (name||'').trim().toLowerCase();
+  const bnorm = normalizeBssid(bssid||'');
+  for(let i=0;i<list.length;i++){
+    const it=list[i];
+    if (bnorm && sameBssid(it.bssid||'', bssid)) return i;
+    if (nameLc && (String(it.name||'').toLowerCase()===nameLc)) return i;
+  }
+  return -1;
+}
+function drawBeacons(){
+  beaconLayer.clearLayers();
+  for(const b of loadBeacons()){
+    if(!Number.isFinite(b.lat)||!Number.isFinite(b.lon)) continue;
+    const m=L.circleMarker([b.lat,b.lon],{radius:6,color:'#fbc02d',weight:2,fillOpacity:.9}).addTo(beaconLayer);
+    m.bindTooltip(`<span class="small">${escapeHtml(b.name||'Beacon')}</span>`,{direction:'top',offset:[0,-8],opacity:.95,sticky:true});
+    m.bindPopup(`<div class="small"><strong>${escapeHtml(b.name||'Beacon')}</strong><br>Lat ${b.lat.toFixed(6)}, Lon ${b.lon.toFixed(6)}${b.bssid?`<br>BSSID ${escapeHtml(prettyBssid(b.bssid))}`:''}</div>`);
+  }
+}
+function renderBeaconList(filter=''){
+  const ul=document.getElementById('beaconList'); ul.innerHTML='';
+  const list=loadBeacons().filter(b=>(((b.name||'')+' '+(b.bssid||'')).toLowerCase().includes(filter.toLowerCase())));
+  if(!list.length){ ul.innerHTML='<li class="list-group-item text-secondary small">No beacons saved.</li>'; return; }
+  for(const b of list){
+    const li=document.createElement('li'); li.className='list-group-item d-flex justify-content-between align-items-center';
+    li.innerHTML=`<div class="me-2">
+      <div class="fw-semibold">${escapeHtml(b.name||'(unnamed)')}</div>
+      <div class="text-secondary small">Lat ${(b.lat??'').toFixed?b.lat.toFixed(6):b.lat}, Lon ${(b.lon??'').toFixed?b.lon.toFixed(6):b.lon}${b.bssid?` · BSSID ${escapeHtml(prettyBssid(b.bssid))}`:''}</div>
+    </div>
+    <div class="btn-group btn-group-sm">
+      <button class="btn btn-outline-primary" data-edit="${escapeHtml(b.name||'')}"><i class="bi bi-pencil-square"></i></button>
+      <button class="btn btn-outline-danger" data-del="${escapeHtml(b.name||'')}"><i class="bi bi-trash"></i></button>
+    </div>`;
+    ul.appendChild(li);
+  }
+}
+document.getElementById('beaconSearch').addEventListener('input', (e)=> renderBeaconList(e.target.value||''));
+
+document.getElementById('btnAddBeacon').addEventListener('click', ()=>{
+  const name = (document.getElementById('bName').value||'').trim();
+  const bssidRaw = (document.getElementById('bBssid').value||'').trim();
+  const bssid = colonizeBssid(bssidRaw) || (bssidRaw||'').trim();
+  const lat = parseFloat(document.getElementById('bLat').value);
+  const lon = parseFloat(document.getElementById('bLon').value);
+  if(!name && !bssid){ alert('Enter a name or BSSID.'); return; }
+  if(!Number.isFinite(lat) || !Number.isFinite(lon)){ alert('Enter valid latitude and longitude (or place on map).'); return; }
+  const list=loadBeacons();
+  const idx = findBeaconIndexByNameOrBssid(name, bssid);
+  const entry = { name, bssid, lat, lon };
+  if(idx>=0) list[idx] = entry;
+  else list.push(entry);
+  saveBeacons(list);
+  // reset UI
+  document.getElementById('bName').value='';
+  document.getElementById('bBssid').value='';
+  document.getElementById('bLat').value='';
+  document.getElementById('bLon').value='';
+  setPlaceMode(false);
+  drawBeacons();
+  renderBeaconList(document.getElementById('beaconSearch').value||'');
+});
+document.getElementById('btnExport').addEventListener('click', ()=>{
+  const data = JSON.stringify(loadBeacons(), null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'beacons.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+});
+document.getElementById('btnImport').addEventListener('click', ()=>{
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='.json,application/json';
+  inp.onchange=()=>{
+    const f=inp.files && inp.files[0]; if(!f) return;
+    const fr=new FileReader();
+    fr.onload=()=>{
+      try{
+        const arr=JSON.parse(String(fr.result||'[]'));
+        if(!Array.isArray(arr)) throw new Error('Invalid JSON array.');
+        const list=loadBeacons();
+        for(const n of arr){
+          if(!n) continue;
+          const name=String(n.name||'').trim();
+          const bssid = colonizeBssid(String(n.bssid||'')) || String(n.bssid||'').trim();
+          const lat = Number(n.lat), lon = Number(n.lon);
+          if(!Number.isFinite(lat)||!Number.isFinite(lon)) continue;
+          const idx=findBeaconIndexByNameOrBssid(name,bssid);
+          const entry={name,bssid,lat,lon};
+          if(idx>=0) list[idx]=entry; else list.push(entry);
+        }
+        saveBeacons(list); drawBeacons(); renderBeaconList(document.getElementById('beaconSearch').value||'');
+      }catch(e){ alert('Import failed: '+e.message); }
+    };
+    fr.readAsText(f);
+  };
+  inp.click();
+});
+document.getElementById('btnClearAll').addEventListener('click', ()=>{
+  if(confirm('Remove ALL saved beacons?')){
+    saveBeacons([]); drawBeacons(); renderBeaconList('');
+  }
+});
+document.getElementById('beaconList').addEventListener('click', (e)=>{
+  const btn=e.target.closest('button'); if(!btn) return;
+  const name=btn.getAttribute('data-edit') || btn.getAttribute('data-del') || '';
+  const list=loadBeacons();
+  const idx = findBeaconIndexByNameOrBssid(name, '');
+  if(idx<0){ alert('Beacon not found.'); return; }
+  if(btn.hasAttribute('data-edit')){
+    const b=list[idx];
+    document.getElementById('bName').value=b.name||'';
+    document.getElementById('bBssid').value=prettyBssid(b.bssid||'');
+    document.getElementById('bLat').value=b.lat;
+    document.getElementById('bLon').value=b.lon;
+    setPlaceMode(true);
+    if(!placeMarker){ placeMarker=L.marker([b.lat,b.lon],{draggable:true}).addTo(map);
+      placeMarker.on('drag', (ev)=>{
+        const ll=ev.target.getLatLng();
+        document.getElementById('bLat').value=ll.lat.toFixed(8);
+        document.getElementById('bLon').value=ll.lon.toFixed(8);
+      });
+    }
+    placeMarker.setLatLng([b.lat,b.lon]);
+    map.setView([b.lat,b.lon], Math.max(map.getZoom(),17));
+  } else if(btn.hasAttribute('data-del')){
+    if(confirm('Delete beacon "'+name+'"?')){
+      list.splice(idx,1); saveBeacons(list); drawBeacons(); renderBeaconList(document.getElementById('beaconSearch').value||'');
+    }
+  }
+});
+
+/* ================= Trilateration core ================= */
+function ll2xy_wrap(lat,lon,refLat,refLon){ return ll2xy(lat,lon,refLat,refLon); }
+function xy2ll_wrap(x,y,refLat,refLon){ return xy2ll(x,y,refLat,refLon); }
+function trilatLM(beacons, initXY){
+  if (beacons.length<3) return null;
+  let x=0,y=0;
+  if (initXY){ x=initXY[0]; y=initXY[1]; }
+  else { for(const b of beacons){ x+=b.x; y+=b.y; } x/=beacons.length; y/=beacons.length; }
+  const maxIter=50, eps=1e-4;
+  let lambda=1;
+  for(let it=0; it<maxIter; it++){
+    let j11=0,j12=0,j22=0,g1=0,g2=0,cost=0;
+    for(const b of beacons){
+      const dx=x-b.x, dy=y-b.y;
+      let r=Math.hypot(dx,dy); if(r<1e-6) r=1e-6;
+      const ri = r - b.d;
+      const w = 1/Math.max(1,b.d);
+      const wx = w*dx/r;
+      const wy = w*dy/r;
+      const wri = w*ri;
+      j11 += wx*wx; j12 += wx*wy; j22 += wy*wy;
+      g1  += wx*wri; g2  += wy*wri;
+      cost+= wri*wri;
+    }
+    const a11=j11+lambda, a12=j12, a21=j12, a22=j22+lambda;
+    const det=a11*a22 - a12*a21;
+    if(Math.abs(det)<1e-12){ lambda*=10; continue; }
+    const d1 = (-g1*a22 + -g2*a12)/det;
+    const d2 = (-g2*a11 + -g1*a21)/det;
+    const nx=x+d1, ny=y+d2;
+    let newCost=0;
+    for(const b of beacons){
+      const dx=nx-b.x, dy=ny-b.y; let r=Math.hypot(dx,dy); if(r<1e-6) r=1e-6;
+      const ri=r-b.d; const w=1/Math.max(1,b.d);
+      newCost += (w*ri)*(w*ri);
+    }
+    if(newCost < cost){ x=nx; y=ny; lambda=Math.max(lambda/3, 1e-6); if(Math.hypot(d1,d2)<eps) break; }
+    else { lambda=Math.min(lambda*3, 1e6); }
+  }
+  let se=0; for(const b of beacons){ const e=Math.hypot(x-b.x,y-b.y)-b.d; se+=e*e; }
+  const rms = Math.sqrt(se / beacons.length);
+  return { x, y, rms };
+}
+function findBeaconByScan(s){ const list=loadBeacons(); if(s.bssid){ const by=list.find(x=> sameBssid(x.bssid, s.bssid)); if(by) return by; } return list.find(x=> (x.name||'').toLowerCase()===(s.ssid||'').toLowerCase()); }
+function drawRangesForDevice(devNormId, scans){
+  const old=rangeByDev.get(devNormId); if(old){ old.remove(); rangeByDev.delete(devNormId); }
+  lastScanByDev.set(devNormId, scans);
+  const group=L.layerGroup();
+  for(const s of scans){
+    const b=findBeaconByScan(s); if(!b) continue;
+    L.circle([b.lat,b.lon],{ radius:s.d, color:'#0277bd', weight:1, fillOpacity:0.05, interactive:false, pane:'rangesPane' }).addTo(group);
+  }
+  rangeByDev.set(devNormId, group);
+  updateRangesVisibility();
+}
+
+/* ================= Parse Favoriot/scan data ================= */
+function parseLatLonFromData(data){
+  if(!data||typeof data!=='object') return null;
+  const latKeys=['lat','latitude','raw_lat','rawLat']; const lonKeys=['lon','lng','long','longitude','raw_lon','rawLong','rawLon'];
+  let lat,lon; for(const k of latKeys){ if(k in data){ lat=parseFloat(data[k]); if(Number.isFinite(lat)) break; } }
+  for(const k of lonKeys){ if(k in data){ lon=parseFloat(data[k]); if(Number.isFinite(lon)) break; } }
+  return (Number.isFinite(lat)&&Number.isFinite(lon))?[lat,lon]:null;
+}
+function extractScanStringFromData(data){
+  if(!data||typeof data!=='object') return '';
+  const keys=[
+    'Beacon_Triangulation','beacon_triangulation',
+    'scan','wifi','wifi_rtt','rtt','payload','status','field3','text','scan_string','scanPayload'
+  ];
+  for(const k of keys){ if(typeof data[k]==='string' && /SSID\s*:|BSSID\s*:|D\s*[:=]/i.test(data[k])) return data[k]; }
+  let acc=''; for(const [k,v] of Object.entries(data)){ if(typeof v==='string') acc+=v; }
+  return acc;
+}
+function parseScanPayload(str){
+  if(!str||typeof str!=='string') return [];
+  const s = String(str);
+  let items=[];
+  const segs = s.match(/\[[^\]]+\]/g) || [];
+  for (let seg of segs){
+    const inner = seg.slice(1,-1);
+    const ssid = (inner.match(/SSID\s*:\s*([^\s\]]+)/i)||[])[1];
+    const bssidRaw = (inner.match(/BSSID\s*:\s*([0-9A-Fa-f:\-]{12,23})/i)||[])[1];
+    const dStr = (inner.match(/\b(?:D|Dist|Distance)\s*[:=]\s*([-+]?\d+(?:\.\d+)?)/i)||[])[1];
+    const bssid = bssidRaw ? prettyBssid(bssidRaw) : undefined;
+    const d = dStr? parseFloat(dStr) : NaN;
+    if (ssid && Number.isFinite(d)) items.push({ssid,bssid,d});
+  }
+  if (items.length) return items;
+  const re = /SSID\s*:\s*([^\s\]]+)[\s\S]*?BSSID\s*:\s*([0-9A-Fa-f:\-]{12,23})[\s\S]*?(?:D|Dist|Distance)\s*[:=]\s*([-+]?\d+(?:\.\d+)?)/gi;
+  let m; while ((m = re.exec(s)) !== null){
+    const ssid = m[1];
+    const bssid = prettyBssid(m[2]);
+    const d = parseFloat(m[3]);
+    if (ssid && Number.isFinite(d)) items.push({ssid,bssid,d});
+  }
+  return items;
+}
+function extractBatteryPercent(data, scanStr){
+  if(data && typeof data==='object'){
+    const keys=['Battery_Percentage','battery_percentage','battery','Battery','batt','batt_percent','batteryPercent','batteryPct'];
+    for(const k of keys){
+      if(k in data){
+        const v = parseFloat(String(data[k]).toString().replace(/[^\d.]/g,''));
+        if(Number.isFinite(v)) return Math.max(0, Math.min(100, v));
+      }
+    }
+  }
+  const s = String(scanStr||'');
+  let m = s.match(/Battery[_\s-]*Percentage\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)/i)
+       || s.match(/\bBatt(?:ery)?\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)\s*%?/i);
+  if(m){ const v=parseFloat(m[1]); if(Number.isFinite(v)) return Math.max(0, Math.min(100, v)); }
+  for(const seg of (s.match(/\[[^\]]+\]/g)||[])){
+    const m2 = seg.match(/Battery[_\s-]*Percentage\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)/i);
+    if(m2){ const v=parseFloat(m2[1]); if(Number.isFinite(v)) return Math.max(0, Math.min(100, v)); }
+  }
+  return null;
+}
+
+/* ================= Markers, Trilateration, Fetching ... ================= */
+function placeDeviceMarker(dev, idx, lat, lon, time){
+  const color=colorForIndex(idx);
+  let m=devMarkers.get(dev.id);
+  const normId=ensureDevId(dev.id);
+  if(lat!=null&&lon!=null){
+    if(!m){ m=L.circleMarker([lat,lon],{radius:7,color:color,weight:3,fillOpacity:.7}); devMarkers.set(dev.id,m); }
+    m.setLatLng([lat,lon]);
+    const when=time? new Date(time).toLocaleString():'—'; const name=escapeHtml(dev.name||'Device');
+    m.bindTooltip(`<span class="small"><strong>${name}</strong><br>${escapeHtml(ensureDevId(dev.id))}<br>${escapeHtml(when)}</span>`,{sticky:true,opacity:.95,offset:[0,-8]});
+    m.bindPopup(`<div class="small"><strong style="color:${color}">${name}</strong><br>ID: ${escapeHtml(ensureDevId(dev.id))}<br>${lat.toFixed(6)}, ${lon.toFixed(6)}<br>${escapeHtml(when)}</div>`);
+    if(isDeviceVisible(normId)) { if(!devicesLayer.hasLayer(m)) m.addTo(devicesLayer); } else { if(devicesLayer.hasLayer(m)) devicesLayer.removeLayer(m); }
+  } else { if(m){ devicesLayer.removeLayer(m); devMarkers.delete(dev.id); } }
+}
+function placeTriMarker(dev, idx, lat, lon, rms){
+  const key=dev.id; let m=triMarkers.get(key);
+  if(lat!=null && lon!=null){
+    const normId = ensureDevId(dev.id);
+    const st = computeStatus(normId);
+    const triColor = st.offline ? '#c62828' : '#2e7d32';
+    if(!m){ m=L.circleMarker([lat,lon],{radius:8,color:triColor,weight:3,fillOpacity:.7}); triMarkers.set(key,m); }
+    m.setLatLng([lat,lon]);
+    m.setStyle({color: triColor});
+    const idHtml=escapeHtml(ensureDevId(dev.id)); const name=escapeHtml(dev.name||'Device');
+    m.bindTooltip(`<span class="small"><strong>${name}</strong><br>${idHtml}<br>RMS ${rms.toFixed(2)} m</span>`,{sticky:true,opacity:.95,offset:[0,-8]});
+    m.bindPopup(`<div class="small"><strong style="color:${triColor}">${name}</strong><br>ID: ${idHtml}<br>${lat.toFixed(6)}, ${lon.toFixed(6)}<br>RMS ${rms.toFixed(2)} m</div>`);
+    if(isDeviceVisible(normId)) { if(!triLayer.hasLayer(m)) m.addTo(triLayer); } else { if(triLayer.hasLayer(m)) triLayer.removeLayer(m); }
+  }else{
+    if(m){ triLayer.removeLayer(m); triMarkers.delete(key); }
+  }
+}
+function appendTrilatTrack(normId, lat, lon){
+  if(!document.getElementById('recordTrilat').checked) return;
+  const recordId = localStorage.getItem('record-device-v1')||'';
+  if(recordId !== normId) return;
+  const pts = trilatTrack.getLatLngs();
+  pts.push(L.latLng(lat,lon));
+  if(pts.length > CONFIG.trailPoints) pts.shift();
+  trilatTrack.setLatLngs(pts);
+}
+function updateDevicesVisibility(){
+  const set=visibleSet();
+  devMarkers.forEach((marker, rawId)=>{
+    const id=ensureDevId(loadDevices().find(d=>d.id===rawId)?.id||rawId);
+    if(set.has(id)){ if(!devicesLayer.hasLayer(marker)) marker.addTo(devicesLayer); }
+    else { if(devicesLayer.hasLayer(marker)) devicesLayer.removeLayer(marker); }
+  });
+  triMarkers.forEach((marker, rawId)=>{
+    const id=ensureDevId(loadDevices().find(d=>d.id===rawId)?.id||rawId);
+    if(set.has(id)){ if(!triLayer.hasLayer(marker)) marker.addTo(triLayer); }
+    else { if(triLayer.hasLayer(marker)) triLayer.removeLayer(marker); }
+  });
+  updateRangesVisibility();
+}
+function computeTrilatForDevice(dev, idx, lat, lon, scans){
+  if(!Array.isArray(scans)) scans = parseScanPayload(scans||'');
+  const normId = ensureDevId(dev.id);
+
+  // 1) Not enough raw scans
+  if (scans.length < CONFIG.trilatMinBeacons){
+    const prev = triResByDev.get(normId);
+    if (prev && prev.tlat!=null && prev.tlon!=null){
+      placeTriMarker(dev, idx, prev.tlat, prev.tlon, prev.rms||0);
+      triResByDev.set(normId, { ...prev, used: scans.length, scans });
+      cacheTriResult(normId, triResByDev.get(normId));
+    } else {
+      placeTriMarker(dev, idx, null, null, 0);
+      triResByDev.set(normId, { used: scans.length, scans, time:null });
+    }
+    return { used: scans.length };
+  }
+
+  // 2) Filter to *matched* beacons
+  const beacons = loadBeacons();
+  let refLat = (lat!=null?lat:(beacons[0]?.lat||0));
+  let refLon = (lon!=null?lon:(beacons[0]?.lon||0));
+  const used = [];
+  for (const s of scans){
+    const b = findBeaconByScan(s);
+    if (!b) continue;
+    const [x,y] = ll2xy(b.lat, b.lon, refLat, refLon);
+    used.push({ x, y, d: s.d });
+  }
+
+  if (used.length < CONFIG.trilatMinBeacons){
+    const prev = triResByDev.get(normId);
+    if (prev && prev.tlat!=null && prev.tlon!=null){
+      placeTriMarker(dev, idx, prev.tlat, prev.tlon, prev.rms||0);
+      triResByDev.set(normId, { ...prev, used: used.length, scans });
+      cacheTriResult(normId, triResByDev.get(normId));
+    } else {
+      placeTriMarker(dev, idx, null, null, 0);
+      triResByDev.set(normId, { used: used.length, scans, time:null });
+    }
+    return { used: used.length };
+  }
+
+  // 3) Solve normally
+  let init = null;
+  if (lat!=null && lon!=null) init = ll2xy(lat, lon, refLat, refLon);
+  const sol = trilatLM(used, init);
+  if (!sol){
+    const prev = triResByDev.get(normId);
+    if (prev && prev.tlat!=null && prev.tlon!=null){
+      placeTriMarker(dev, idx, prev.tlat, prev.tlon, prev.rms||0);
+      triResByDev.set(normId, { ...prev, used: used.length, scans });
+      cacheTriResult(normId, triResByDev.get(normId));
+    } else {
+      placeTriMarker(dev, idx, null, null, 0);
+      triResByDev.set(normId, { used: used.length, scans, time:null });
+    }
+    return { used: used.length };
+  }
+
+  const [tlat, tlon] = xy2ll(sol.x, sol.y, refLat, refLon);
+  placeTriMarker(dev, idx, tlat, tlon, sol.rms);
+  appendTrilatTrack(normId, tlat, tlon);
+
+  const lastT = lastSeenByDev.get(normId) || null;
+  const res = { used: used.length, tlat, tlon, rms: sol.rms, scans, time: lastT };
+  triResByDev.set(normId, res);
+  cacheTriResult(normId, res);
+  return res;
+}
+function renderTriInfoList(centerFit=false){
+  const box=document.getElementById('triInfoList'); box.innerHTML='';
+  const vis=visibleSet();
+  const list=loadDevices();
+  const bounds=L.latLngBounds([]);
+
+  list.forEach((d,i)=>{
+    const norm=ensureDevId(d.id);
+    if(!vis.has(norm)) return;
+    const tri=triResByDev.get(norm)||{};
+    const name=escapeHtml(d.name||'Device');
+    const idHtml=escapeHtml(norm);
+    const html=`<div class="tri-row">
+      <div class="tri-title">${name}</div>
+      <div class="small text-secondary">${idHtml}</div>
+      <div class="row row-cols-2 g-2 mt-1">
+        <div class="col"><div class="small text-secondary">Beacons used</div><div class="stat">${tri.used??0}</div></div>
+        <div class="col"><div class="small text-secondary">RMS</div><div class="stat">${(tri.rms!=null)? tri.rms.toFixed(2)+' m' : '—'}</div></div>
+        <div class="col"><div class="small text-secondary">Tri Lat</div><div class="stat">${(tri.tlat!=null)? tri.tlat.toFixed(6) : '—'}</div></div>
+        <div class="col"><div class="small text-secondary">Tri Lon</div><div class="stat">${(tri.tlon!=null)? tri.tlon.toFixed(6) : '—'}</div></div>
+      </div>
+      <div class="d-flex gap-2 mt-2 link-mini">
+        <a class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener" href="${(tri.tlat!=null)?`https://www.openstreetmap.org/?mlat=${tri.tlat}&mlon=${tri.tlon}#map=19/${tri.tlat}/${tri.tlon}`:'#'}"><i class="bi bi-map"></i> OSM</a>
+        <a class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener" href="${(tri.tlat!=null)?`https://www.google.com/maps?q=${tri.tlat},${tri.tlon}`:'#'}"><i class="bi bi-geo"></i> Google</a>
+      </div>
+    </div>`;
+    box.insertAdjacentHTML('beforeend', html);
+    if(tri.tlat!=null && tri.tlon!=null){ bounds.extend([tri.tlat,tri.tlon]); }
+  });
+
+  if(centerFit && document.getElementById('centerOnUpdate').checked){
+    if(bounds.isValid()){ map.fitBounds(bounds.pad(0.2), { animate:true, duration:.4, maxZoom:18 }); }
+  }
+}
+
+/* ================= Favoriot fetching ================= */
+async function fetchFavoriot(url, headers, {attempt=0, viaDefaultProxy=false}={}){
+  const usedUrl = viaDefaultProxy ? withProxy(url, true) : url;
+  const controller = new AbortController();
+  const t = setTimeout(()=>controller.abort(), 12000);
+  try{
+    const r = await fetch(usedUrl, { headers, signal: controller.signal });
+    clearTimeout(t); return r;
+  }catch(e){
+    clearTimeout(t);
+    if(attempt===0 && !viaDefaultProxy){ return fetchFavoriot(url, headers, {attempt:1, viaDefaultProxy:true}); }
+    throw e;
+  }
+}
+function explainFetchError(e, rJson){
+  if (e?.name === 'AbortError') return 'Request timed out.';
+  const msg = String(e?.message || '');
+  if (/Failed to fetch|NetworkError|TypeError: Failed to fetch/i.test(msg)) return 'Network/CORS error — set a CORS proxy in Settings (or try again).';
+  if (rJson?.message) return rJson.message;
+  return msg || 'Unknown error';
+}
+async function fetchOneDeviceLatest(dev, idx){
+  const url=streamsUrl(dev); const headers=headersFor();
+  try{
+    clearErr();
+    let r = await fetchFavoriot(url, headers, {attempt:0, viaDefaultProxy:false});
+    let text = await r.text(); let j=null; try{ j=JSON.parse(text); }catch{}
+    if(!r.ok){
+      if (r.status===429 || (r.status>=500 && r.status<600)) {
+        await new Promise(res=>setTimeout(res, 800));
+        r = await fetchFavoriot(url, headers, {attempt:0, viaDefaultProxy:false});
+        text = await r.text(); j=null; try{ j=JSON.parse(text); }catch{}
+        if(!r.ok) throw new Error(j?.message || `${r.status} ${r.statusText}`);
+      } else { throw new Error(j?.message || `${r.status} ${r.statusText}`);
+      }
+    }
+    let last=null;
+    if(Array.isArray(j.results) && j.results.length){
+      last = j.results.reduce((a,b)=>{
+        const ta = Date.parse(a.stream_created_at||a.created_at||a.timestamp||0);
+        const tb = Date.parse(b.stream_created_at||b.created_at||b.timestamp||0);
+        return (tb>ta)? b : a;
+      }, j.results[0]);
+    }
+    let lat=null,lon=null,time=null,scan='';
+    if(last){
+      const pair=parseLatLonFromData(last.data); if(pair){ lat=pair[0]; lon=pair[1]; }
+      time= last.stream_created_at || last.created_at || last.timestamp || null;
+      scan= extractScanStringFromData(last.data);
+    }
+    const batt = extractBatteryPercent(last?.data||{}, scan);
+    const state = extractState(last?.data||{}, scan);
+    const tempC = extractTemperature(last?.data||{}, scan);
+    const sleepSec = extractSleepSec(last?.data||{}, scan);
+
+    const normId=ensureDevId(dev.id);
+    const ts = time ? Date.parse(time) : NaN;
+    if(Number.isFinite(ts)) lastSeenByDev.set(normId, ts); else lastSeenByDev.set(normId, undefined);
+
+    batteryByDev.set(normId, batt);
+    stateByDev.set(normId, state);
+    tempByDev.set(normId, tempC);
+    if(sleepSec!=null) sleepSecByDev.set(normId, sleepSec); else sleepSecByDev.delete(normId);
+
+    placeDeviceMarker(dev,idx,lat,lon,time);
+
+    const scans=parseScanPayload(scan||'');
+    lastScanByDev.set(normId, scans);
+    drawRangesForDevice(normId, scans);
+
+    let usedCount=0;
+    if(document.getElementById('enableTri2').checked){
+      const triRes = computeTrilatForDevice(dev, idx, lat, lon, scans);
+      usedCount = triRes?.used||0;
+    }else{
+      placeTriMarker(dev, idx, null, null, 0);
+      triResByDev.set(normId, {used:0, scans, time:null});
+    }
+    if(!usedCount){ usedCount = scans.reduce((n,s)=> n + (findBeaconByScan(s)?1:0), 0); }
+    healthByDev.set(normId, usedCount >= CONFIG.trilatMinBeacons);
+
+    // Offline reason population (Sleep-aware)
+    (function(){
+      const st = computeStatus(normId);
+      if(st.offline){
+        let reason='';
+        if(healthByDev.get(normId)===false){
+          reason = `Not enough beacons matched for trilateration (${usedCount}/${CONFIG.trilatMinBeacons}).`;
+        } else {
+          const ts2 = lastSeenByDev.get(normId);
+          const when = ts2 ? new Date(ts2).toLocaleString() : '—';
+          if(st.sleepSec){
+            const since = ts2 ? Math.round((Date.now()-ts2)/1000) : null;
+            reason = since!=null ? `Exceeded sleep (${st.sleepSec}s); no new data for ${since}s (last ${when}).` : `Exceeded sleep (${st.sleepSec}s) without new data.`;
+          } else {
+            const mins = ts2 ? Math.round((Date.now()-ts2)/60000) : null;
+            reason = mins!=null ? `No new data for ${mins} min (last ${when}).` : 'No recent data received.';
+          }
+        }
+        offlineReasonByDev.set(normId, reason);
+      } else {
+        offlineReasonByDev.delete(normId);
+      }
+    })();
+
+    const sEl=document.getElementById(`st-${idx}`);
+    if(sEl){
+      const when=time? new Date(time).toLocaleString():'—';
+      const battHtml = batteryBadgeHtml(batt, state);
+      const stateHtml = stateBadgeHtml(state);
+      const tempHtml = tempHtmlC(tempC);
+      if(lat!=null&&lon!=null){
+        sEl.innerHTML = `Lat ${lat.toFixed(6)} · Lon ${lon.toFixed(6)} · ${escapeHtml(when)}${stateHtml}${tempHtml}${battHtml}`;
+      }else{
+        sEl.innerHTML = `— ${escapeHtml(when)}${stateHtml}${tempHtml}${battHtml}`;
+      }
+    }
+
+    // Auto-fill Scan Tester on refresh
+    if (document.getElementById('toggleScanTester').checked) {
+      const selId = document.getElementById('scanSource').value;
+      const autoFill = document.getElementById('scanAutoFill').checked;
+      const autoParse = document.getElementById('scanAutoParse').checked;
+      if (autoFill && ensureDevId(dev.id) === selId) {
+        document.getElementById('scanInput').value = scan || '';
+        if (autoParse) { parseScanTester(); }
+      }
+    }
+
+    refreshHealthDots();
+    return { ok:true };
+  }catch(e){
+    console.error('Device fetch error',dev.id,e);
+    let reason = '';
+    try{
+      const rp = await fetchFavoriot(url, headers, {attempt:1, viaDefaultProxy:true});
+      const txt = await rp.text(); const j = JSON.parse(txt);
+      reason = explainFetchError(e, j);
+    }catch(_ignore){
+      reason = explainFetchError(e, null);
+    }
+    showErr(`Fetch failed for ${ensureDevId(dev.id)} — ${reason}`);
+    placeDeviceMarker(dev,idx,null,null,null);
+    placeTriMarker(dev, idx, null, null, 0);
+    const normId=ensureDevId(dev.id);
+    healthByDev.set(normId, false);
+    offlineReasonByDev.set(normId, reason || 'Fetch failed.');
+    refreshHealthDots();
+    return { ok:false, err:String(e) };
+  }
+}
+async function fetchAllDevices(){
+  const list=loadDevices();
+  await Promise.all(list.map((d,i)=> fetchOneDeviceLatest(d,i)));
+  updateDevicesVisibility();
+  renderTriInfoList(true);
+}
+
+/* ================= Health dots & Online badges ================= */
+function refreshHealthDots(){
+  const list=loadDevices();
+  list.forEach((d,i)=>{
+    const norm=ensureDevId(d.id);
+    const st=computeStatus(norm);
+    const col=statusDotColor(norm);
+    const a=document.getElementById(`dot-${i}`); if(a) a.style.background=col;
+    const b=document.getElementById(`vDot-${i}`); if(b) b.style.background=col;
+    const lbl=document.getElementById(`ol-${i}`);
+    if(lbl){
+      if(st.offline){
+        lbl.textContent='Offline';
+        lbl.className='badge ms-2 bg-danger-subtle text-danger-emphasis';
+      } else if(st.sleeping){
+        lbl.innerHTML='Sleep <span class="zzz">💤</span>';
+        lbl.className='badge ms-2 bg-warning-subtle text-warning-emphasis';
+      } else {
+        lbl.textContent='Online';
+        lbl.className='badge ms-2 bg-success-subtle text-success-emphasis';
+      }
+    }
+    const rs=document.getElementById(`rs-${i}`);
+    if(rs){ rs.textContent = st.offline ? (offlineReasonByDev.get(norm)||'') : ''; }
+    const tm = triMarkers.get(d.id);
+    if (tm) tm.setStyle({ color: st.offline ? '#c62828' : '#2e7d32' });
+  });
+}
+
+/* ================= Controls & Settings ================= */
+function setPeriod(){ document.getElementById('periodLabel').textContent=Math.round((CFG().refreshMs||8000)/1000)+'s'; }
+function startTimer(){ stopTimer(); window._timer=setInterval(()=>{ fetchAllDevices(); }, Math.max(2000, (CFG().refreshMs||8000))); setPeriod(); }
+function stopTimer(){ if(window._timer) clearInterval(window._timer); }
+
+document.getElementById('applyFavoriot').addEventListener('click', ()=>{
+  const cfg=CFG();
+  cfg.apiKey=(document.getElementById('favApiKey').value||'').trim();
+  cfg.username=(document.getElementById('favUser').value||'').trim();
+  cfg.refreshMs=Math.max(2000, parseInt(document.getElementById('refreshSec').value||'8',10)*1000);
+  cfg.authHeader=(document.getElementById('authHeader').value||'apikey');
+  cfg.proxy=(document.getElementById('corsProxy').value||'').trim();
+  saveCFG(cfg); startTimer(); alert('Settings saved.');
+});
+
+document.getElementById('btnAddDevice').addEventListener('click', ()=>{
+  const id=(document.getElementById('devId').value||'').trim();
+  const name=(document.getElementById('devName').value||'').trim();
+  if(!id){ alert('Enter a Device ID'); return; }
+  const list=loadDevices(); list.push({id,name}); saveDevices(list);
+  document.getElementById('devId').value=''; document.getElementById('devName').value='';
+  const set=visibleSet(); set.add(ensureDevId(id)); saveVisibleSet(set);
+  rebuildRecordDeviceSelect(); renderDeviceList(); renderVisibilityDropdown(); renderTrackerList(); rebuildScanSourceSelect();
+  fetchAllDevices(); updateDevicesVisibility(); renderTriInfoList(true);
+});
+document.getElementById('btnClearTrilatRoute').addEventListener('click', ()=>{ trilatTrack.setLatLngs([]); });
+document.getElementById('btnRefresh').addEventListener('click', ()=>{ fetchAllDevices(); });
+document.getElementById('autorefresh').addEventListener('change',(e)=>{ if(e.target.checked) startTimer(); else stopTimer(); });
+document.getElementById('showBeacons').addEventListener('change',(e)=>{
+  if(e.target.checked){ if(!map.hasLayer(beaconLayer)) beaconLayer.addTo(map); }
+  else { if(map.hasLayer(beaconLayer)) map.removeLayer(beaconLayer); }
+});
+document.getElementById('showRanges').addEventListener('change', (e)=>{
+  if(!e.target.checked){ testRangesLayer.clearLayers(); }  // ensure purple debug rings are cleared
+  updateRangesVisibility();
+});
+
+// Range scope UI
+const rangeScopeSel=document.getElementById('rangeScope');
+const rangeDeviceSel=document.getElementById('rangeDevice');
+function getRangeScope(){ return localStorage.getItem('range-mode-v1') || 'all'; }
+function setRangeScope(v){ localStorage.setItem('range-mode-v1', v); updateRangesVisibility(); applyRangeScopeUI(); }
+function getRangeDevice(){ return localStorage.getItem('range-device-v1') || ''; }
+function setRangeDevice(id){ localStorage.setItem('range-device-v1', id); updateRangesVisibility(); }
+function applyRangeScopeUI(){ const scope=getRangeScope(); rangeScopeSel.value=scope; rangeDeviceSel.disabled = (scope!=='specific'); }
+rangeScopeSel.addEventListener('change', ()=> setRangeScope(rangeScopeSel.value));
+rangeDeviceSel.addEventListener('change', ()=> setRangeDevice(rangeDeviceSel.value));
+
+/* ================= Locate Me ================= */
+document.getElementById('btnLocate').addEventListener('click', (e)=> doLocate(e.currentTarget));
+document.getElementById('btnLocateFab').addEventListener('click', (e)=> doLocate(e.currentTarget));
+document.addEventListener('keydown', (e)=>{
+  const t = e.target;
+  const tag = (t && t.tagName || '').toLowerCase();
+  const typing = tag==='input' || tag==='textarea' || tag==='select' || (t && t.isContentEditable);
+  if(typing) return;
+  if(e.key && e.key.toLowerCase()==='l'){ e.preventDefault(); doLocate(document.getElementById('btnLocateFab')); }
+});
+function doLocate(btn){
+  if(!('geolocation' in navigator)){ alert('Geolocation not supported in this browser.'); return; }
+  if(!window.isSecureContext){ alert('Geolocation requires HTTPS or localhost. Please host this file via https:// (or use a local server).'); return; }
+  const restore=()=>{ if(btn){ btn.disabled=false; btn.innerHTML='<i class="bi bi-crosshair"></i>'; } };
+  if(btn){ btn.disabled=true; btn.innerHTML='<i class="bi bi-hourglass-split"></i>'; }
+  navigator.geolocation.getCurrentPosition((pos)=>{
+    const {latitude,longitude,accuracy}=pos.coords; const lat=latitude, lon=longitude;
+    if(!meMarker) meMarker=L.circleMarker([lat,lon],{radius:8,color:'#1e88e5',weight:3,fillOpacity:0.7}).addTo(map);
+    meMarker.setLatLng([lat,lon]).bindPopup(`<div class="small"><strong>You are here</strong><br>Lat ${lat.toFixed(6)}, Lon ${lon.toFixed(6)}<br>±${Math.round(accuracy)} m</div>`);
+    if(!meCircle) meCircle=L.circle([lat,lon],{radius:accuracy,color:'#1e88e5',weight:1,fillOpacity:0.08}).addTo(map);
+    meCircle.setLatLng([lat,lon]); meCircle.setRadius(accuracy);
+    map.setView([lat,lon], Math.max(map.getZoom(),16));
+    if(window._locTimer) clearTimeout(window._locTimer);
+    window._locTimer=setTimeout(()=>{ if(meMarker){ map.removeLayer(meMarker); meMarker=null; } if(meCircle){ map.removeLayer(meCircle); meCircle=null; } }, 6000);
+    restore();
+  }, (err)=>{ alert('Geolocation: '+(err&&err.message? err.message : 'permission denied')); restore(); }, { enableHighAccuracy:true, timeout:10000, maximumAge:30000 });
+}
+
+/* ================= Ranges visibility ================= */
+function activeDeviceNormalizedId(){
+  const sel=document.getElementById('recordDevice');
+  const v = sel && sel.value;
+  if(v) return v;
+  const list=loadDevices();
+  return list[0] ? ensureDevId(list[0].id) : '';
+}
+function isScanTesterOn(){ return document.getElementById('toggleScanTester').checked; }
+function isScanDrawOn(){ return document.getElementById('scanDraw').checked; }
+function isShowRangesOn(){ return document.getElementById('showRanges').checked; }
+
+function updateRangesVisibility(){
+  const enabled=isShowRangesOn();
+  const scope=getRangeScope();
+  const specificId=getRangeDevice();
+  const vis=visibleSet();
+
+  rangeByDev.forEach((group, id)=>{
+    let show=false;
+    if(enabled){
+      if(scope==='all'){ show = vis.has(id); }
+      else if(scope==='active'){ show = (id===activeDeviceNormalizedId()); }
+      else if(scope==='specific'){ show = (id===specificId); }
+    }
+    if(show){ if(!map.hasLayer(group)) group.addTo(map); }
+    else { if(map.hasLayer(group)) map.removeLayer(group); }
+  });
+
+  const shouldShowDebug = enabled && isScanTesterOn() && isScanDrawOn() && testRangesLayer.getLayers().length>0;
+  if(shouldShowDebug){
+    if(!map.hasLayer(testRangesLayer)) testRangesLayer.addTo(map);
+  }else{
+    if(map.hasLayer(testRangesLayer)) map.removeLayer(testRangesLayer);
+    testRangesLayer.clearLayers(); // ensure purple rings are fully gone
+  }
+}
+
+/* ================= Scan string tester helpers ================= */
+function parseScanTester(){
+  const s = String(document.getElementById('scanInput').value||'');
+  const items = parseScanPayload(s);
+  const decorated = items.map(it=>{
+    const b = findBeaconByScan(it);
+    return {...it, matched: !!b, beaconName: b? (b.name||'') : null, beaconLat: b? b.lat : null, beaconLon: b? b.lon : null};
+  });
+  const scanParsed = document.getElementById('scanParsed');
+  const scanSummary = document.getElementById('scanSummary');
+  scanParsed.textContent = decorated.length ? JSON.stringify(decorated, null, 2) : '—';
+  scanSummary.textContent = decorated.length ? `Parsed ${decorated.length} beacons (${decorated.filter(d=>d.matched).length} matched to saved beacons)` : '—';
+
+  // Draw only when all three toggles are ON
+  const canDraw = isShowRangesOn() && isScanTesterOn() && isScanDrawOn();
+
+  testRangesLayer.clearLayers();
+  if(canDraw){
+    const bounds = L.latLngBounds([]);
+    decorated.forEach(it=>{
+      if(it.matched && Number.isFinite(it.beaconLat) && Number.isFinite(it.beaconLon) && Number.isFinite(it.d)){
+        L.circle([it.beaconLat, it.beaconLon], {radius: it.d, color:'#6a1b9a', weight:1, fillOpacity:0.05, pane:'rangesPane'}).addTo(testRangesLayer);
+        bounds.extend([it.beaconLat, it.beaconLon]);
+      }
+    });
+    if(document.getElementById('scanFit').checked && bounds.isValid()){
+      map.fitBounds(bounds.pad(0.2), { animate:true, duration:.4, maxZoom:18 });
+    }
+  }
+  updateRangesVisibility();
+}
+
+const scanToggle = document.getElementById('toggleScanTester');
+const scanBox = document.getElementById('scanTester');
+const scanInput = document.getElementById('scanInput');
+const scanSourceSel = document.getElementById('scanSource');
+function rebuildScanSourceSelect(){
+  scanSourceSel.innerHTML='';
+  const list=loadDevices();
+  list.forEach((d)=>{
+    const opt=document.createElement('option');
+    opt.value=ensureDevId(d.id);
+    opt.textContent=(d.name? d.name+' • ' : '')+opt.value;
+    scanSourceSel.appendChild(opt);
+  });
+  const recSel=document.getElementById('recordDevice');
+  if (scanSourceSel.options.length){
+    if(recSel && recSel.value){
+      const idx = [...scanSourceSel.options].findIndex(o=>o.value===recSel.value);
+      scanSourceSel.selectedIndex = idx>=0 ? idx : 0;
+    } else {
+      scanSourceSel.selectedIndex = 0;
+    }
+  }
+}
+async function loadLatestScanToTester(){
+  const id = scanSourceSel.value;
+  if(!id){ alert('No device selected.'); return; }
+  const dev = { id };
+  const url = streamsUrl(dev);
+  const headers = headersFor();
+  try{
+    const r = await fetchFavoriot(url, headers, {attempt:0, viaDefaultProxy:false});
+    const txt = await r.text(); let j=null; try{ j=JSON.parse(txt); }catch{}
+    if(!r.ok) throw new Error(j?.message || `${r.status} ${r.statusText}`);
+    let last=null;
+    if(Array.isArray(j.results) && j.results.length){
+      last = j.results.reduce((a,b)=>{
+        const ta = Date.parse(a.stream_created_at||a.created_at||a.timestamp||0);
+        const tb = Date.parse(b.stream_created_at||b.created_at||b.timestamp||0);
+        return (tb>ta)? b : a;
+      }, j.results[0]);
+    }
+    const scan = last? extractScanStringFromData(last.data) : '';
+    scanInput.value = scan || '';
+    if(document.getElementById('scanAutoParse').checked){ parseScanTester(); }
+    if(!scan) alert('No scan string found in latest record.');
+  }catch(e){
+    showErr('Scan tester: '+(e?.message||'failed to load latest.'));
+  }
+}
+
+document.getElementById('btnScanParse').addEventListener('click', parseScanTester);
+document.getElementById('btnScanClear').addEventListener('click', ()=>{
+  testRangesLayer.clearLayers();
+  document.getElementById('scanParsed').textContent='—';
+  document.getElementById('scanSummary').textContent='—';
+  updateRangesVisibility();
+});
+document.getElementById('btnScanLoad').addEventListener('click', loadLatestScanToTester);
+scanToggle.addEventListener('change', ()=>{
+  const on = scanToggle.checked;
+  scanBox.classList.toggle('d-none', !on);
+  if(on) rebuildScanSourceSelect();
+  if(!on) testRangesLayer.clearLayers(); // immediate clear when disabling
+  updateRangesVisibility();
+});
+document.getElementById('scanDraw').addEventListener('change', ()=>{
+  if(!document.getElementById('scanDraw').checked){ testRangesLayer.clearLayers(); }
+  updateRangesVisibility();
+});
+
+/* ================= Export All / Import All / Legacy ================= */
+function collectAllData(){
+  return {
+    version: '4.19.17',
+    exported_at: new Date().toISOString(),
+    origin: location.origin,
+    storage: {
+      ['favoriot-config-v4']: jget('favoriot-config-v4', null),
+      ['favoriot-devices-v4']: jget('favoriot-devices-v4', []),
+      ['beacons-v1']: jget('beacons-v1', []),
+      ['visible-devices-v1']: Array.from(visibleSet()),
+      ['range-mode-v1']: localStorage.getItem('range-mode-v1') || 'all',
+      ['range-device-v1']: localStorage.getItem('range-device-v1') || '',
+      ['record-device-v1']: localStorage.getItem('record-device-v1') || ''
+    }
+  };
+}
+function exportAll(){
+  const pkg = collectAllData();
+  const blob = new Blob([JSON.stringify(pkg,null,2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'alpsalpine_favoriot_backup.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+function importAllFromObject(obj){
+  if(!obj) throw new Error('Empty file.');
+  const S = obj.storage || obj; // allow flat structure
+  if (S['favoriot-config-v4'] && typeof S['favoriot-config-v4']==='object') jset('favoriot-config-v4', S['favoriot-config-v4']);
+  if (Array.isArray(S['favoriot-devices-v4'])) jset('favoriot-devices-v4', S['favoriot-devices-v4']);
+  if (Array.isArray(S['beacons-v1'])) jset('beacons-v1', S['beacons-v1']);
+  if (Array.isArray(S['visible-devices-v1'])) jset('visible-devices-v1', S['visible-devices-v1']);
+  if (S['range-mode-v1']) localStorage.setItem('range-mode-v1', S['range-mode-v1']);
+  if (S['range-device-v1']) localStorage.setItem('range-device-v1', S['range-device-v1']);
+  if (S['record-device-v1']) localStorage.setItem('record-device-v1', S['record-device-v1']);
+
+  // Refresh UI
+  const cfg=CFG();
+  document.getElementById('favApiKey').value=(cfg.apiKey||'');
+  document.getElementById('favUser').value=(cfg.username||'');
+  document.getElementById('refreshSec').value=Math.max(2, Math.round((cfg.refreshMs||8000)/1000));
+  document.getElementById('authHeader').value=(cfg.authHeader||'apikey');
+  document.getElementById('corsProxy').value=(cfg.proxy||'');
+
+  drawBeacons(); renderBeaconList(); rebuildRecord(); renderVisibilityAndLists(); rebuildScanSourceSelect();
+  applyRangeScopeUI();
+  fetchAllDevices(); updateDevicesVisibility(); renderTriInfoList(true);
+}
+function importAll(){
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='.json,application/json';
+  inp.onchange=()=>{
+    const f=inp.files && inp.files[0]; if(!f) return;
+    const fr=new FileReader();
+    fr.onload=()=>{
+      try{
+        const obj=JSON.parse(String(fr.result||'{}'));
+        stopTimer();
+        importAllFromObject(obj);
+        startTimer();
+        alert('Import complete.');
+      }catch(e){ alert('Import failed: '+e.message); }
+    };
+    fr.readAsText(f);
+  };
+  inp.click();
+}
+function migrateLegacy(forceOverwrite=true){
+  let moved=0, details=[];
+  for(const {from,to} of LEGACY_KEYS){
+    try{
+      const raw = localStorage.getItem(from);
+      if(!raw) continue;
+      if(forceOverwrite || !localStorage.getItem(to)){
+        localStorage.setItem(to, raw);
+        moved++; details.push(`${from} → ${to}`);
+      }
+    }catch{}
+  }
+  drawBeacons(); renderBeaconList(); rebuildRecord(); renderVisibilityAndLists(); rebuildScanSourceSelect();
+  applyRangeScopeUI();
+  fetchAllDevices(); updateDevicesVisibility(); renderTriInfoList(true);
+  return { moved, details };
+}
+document.getElementById('btnExportAll').addEventListener('click', exportAll);
+document.getElementById('btnImportAll').addEventListener('click', importAll);
+document.getElementById('btnMigrateLegacy').addEventListener('click', ()=>{
+  const res = migrateLegacy(true);
+  if(res.moved>0) alert(`Recovered ${res.moved} item(s):\n`+res.details.join('\n'));
+  else alert('No legacy data found for this origin.');
+});
+
+/* ================= Init helpers ================= */
+function rebuildRangeDeviceSelect(){
+  const rangeSel=document.getElementById('rangeDevice'); rangeSel.innerHTML='';
+  loadDevices().forEach((d)=>{ const opt=document.createElement('option'); opt.value=ensureDevId(d.id); opt.textContent=(d.name? d.name+' • ' : '')+ensureDevId(d.id); rangeSel.appendChild(opt); });
+  const stored=getRangeDevice(); if(stored) rangeSel.value=stored;
+}
+function renderVisibilityAndLists(){
+  renderVisibilityDropdown();
+  renderDeviceList();
+  renderTrackerList();
+}
+function rebuildRecord(){
+  rebuildRecordDeviceSelect();
+  rebuildRangeDeviceSelect();
+}
+function tryMigrateLegacySameOrigin(){
+  let moved=0;
+  for(const {from,to} of LEGACY_KEYS){
+    try{
+      const raw = localStorage.getItem(from);
+      if(raw && !localStorage.getItem(to)){
+        localStorage.setItem(to, raw);
+        moved++;
+      }
+    }catch{}
+  }
+  return moved;
+}
+function applyRangeScopeUI(){ const scope=getRangeScope(); rangeScopeSel.value=scope; rangeDeviceSel.disabled = (scope!=='specific'); }
+
+function restoreTriMarkersFromCache(){
+  const cache = loadTriCache();
+  const list = loadDevices();
+  if(!cache || !list || !list.length) return;
+  list.forEach((d,i)=>{
+    const norm = ensureDevId(d.id);
+    const c = cache[norm];
+    if(!c || c.tlat==null || c.tlon==null) return;
+    // revive lastSeen for stale coloring
+    if(c.time){ const ts = Date.parse(c.time); if(Number.isFinite(ts)) lastSeenByDev.set(norm, ts); }
+    // materialize triRes map so Tri Info shows something
+    const res = { used: 0, tlat: c.tlat, tlon: c.tlon, rms: c.rms ?? 0, scans: [], time: c.time ?? null };
+    triResByDev.set(norm, res);
+    // draw marker with proper color based on staleness
+    placeTriMarker(d, i, c.tlat, c.tlon, c.rms ?? 0);
+  });
+  updateDevicesVisibility();
+  renderTriInfoList(false);
+}
+
+function init(){
+  if(!jget('favoriot-devices-v4', []).length && !jget('beacons-v1', []).length){
+    const moved = tryMigrateLegacySameOrigin();
+    if(moved>0) showErr(`Recovered ${moved} legacy entries from same-origin storage.`);
+  }
+
+  const cfg=CFG();
+  document.getElementById('favApiKey').value=(cfg.apiKey||'');
+  document.getElementById('favUser').value=(cfg.username||'');
+  document.getElementById('refreshSec').value=Math.max(2, Math.round((cfg.refreshMs||8000)/1000));
+  document.getElementById('authHeader').value=(cfg.authHeader||'apikey');
+  document.getElementById('corsProxy').value=(cfg.proxy||'');
+
+  if(!(cfg.apiKey||'').trim()){
+    showErr('No Favoriot Read API Key set — open Settings and paste your key, then click “Save settings”.');
+  }
+
+  drawBeacons(); renderBeaconList(); rebuildRecord(); renderVisibilityAndLists();
+  applyRangeScopeUI();
+  rebuildScanSourceSelect();
+  restoreTriMarkersFromCache();
+
+  if(!document.getElementById('showBeacons').checked && map.hasLayer(beaconLayer)) map.removeLayer(beaconLayer);
+  fetchAllDevices(); startTimer(); setPeriod();
+}
+init();
+</script>
+
+<!-- === BEGIN: Full Fix Patch (Active_Time_Sec timing, no-trilat label, persist last position) === -->
+<script>
+(function(){
+  // ------------------------------
+  // 0) Helpers and shared caches
+  // ------------------------------
+  window.activeSecByDev = window.activeSecByDev || new Map();
+
+  // Parse Active_Time_Sec from JSON or free-form string
+  function extractActiveSec(data, scanStr){
+    try{
+      if (data && typeof data === 'object'){
+        for (const [k,v] of Object.entries(data)){
+          const lk = String(k).toLowerCase().replace(/[^a-z0-9]/g,'');
+          if (lk.includes('active') && (lk.includes('sec') || lk.includes('time'))
+               || lk.endsWith('activetimesec') || lk.endsWith('activesec') || lk==='activetimesec'){
+            const m = String(v).match(/([-+]?\d+(?:\.\d+)?)/);
+            if (m){ const n = parseFloat(m[1]); if (Number.isFinite(n) && n>0) return Math.round(n); }
+          }
+        }
+      }
+      const s = String(scanStr||'');
+      let m = s.match(/active[_\s-]*time[_\s-]*sec\s*[:=]\s*(\d+)/i)
+            || s.match(/\bactive\s*[:=]\s*(\d+)\s*s\b/i)
+            || s.match(/\bactive[_\s-]*sec\s*[:=]\s*(\d+)/i);
+      if (m){ const n = parseFloat(m[1]); if (Number.isFinite(n) && n>0) return Math.round(n); }
+    }catch(e){}
+    return null;
+  }
+
+  // Last-known-good trilat cache (RAM + localStorage)
+  const LS_KEY = 'alps-last-good-pos';
+  try{
+    window.lastGoodPosByDev = window.lastGoodPosByDev || new Map();
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw && !lastGoodPosByDev.size){
+      const o = JSON.parse(raw);
+      Object.entries(o).forEach(([k,v])=>{
+        if (v && Number.isFinite(v.lat) && Number.isFinite(v.lon)) lastGoodPosByDev.set(k, v);
+      });
+    }
+  }catch(_){}
+
+  function saveLastGood(){
+    try{
+      const o = {};
+      lastGoodPosByDev.forEach((v,k)=>{ o[k]=v; });
+      localStorage.setItem(LS_KEY, JSON.stringify(o));
+    }catch(_){}
+  }
+
+  function trilatIsValid(res, need){
+    if (!res) return false;
+    const used = Number.isFinite(res.used) ? res.used : 0;
+    const tlat = Number(res.tlat), tlon = Number(res.tlon);
+    return Number.isFinite(tlat) && Number.isFinite(tlon) && used >= need;
+  }
+
+  function applyFallback(normId, need){
+    const cache = window.lastGoodPosByDev && window.lastGoodPosByDev.get(normId);
+    if (!cache) return false;
+    if (typeof triResByDev!=='undefined'){
+      const prev = triResByDev.get(normId) || {};
+      triResByDev.set(normId, { ...prev, tlat: cache.lat, tlon: cache.lon, used: Math.max(cache.used||need, need), cached:true });
+      return true;
+    }
+    return false;
+  }
+
+  // ----------------------------------------------------------
+  // 1) Wrap fetchOneDeviceLatest ONCE to add all enhancements
+  // ----------------------------------------------------------
+  if (typeof window.fetchOneDeviceLatest === 'function' && !window.__wrappedFetchOneDeviceLatest){
+    const __origFetch = window.fetchOneDeviceLatest;
+    window.__wrappedFetchOneDeviceLatest = true;
+
+    window.fetchOneDeviceLatest = async function(dev, idx){
+      const need = (typeof CONFIG!=='undefined' && Number.isFinite(CONFIG.trilatMinBeacons)) ? CONFIG.trilatMinBeacons : 3;
+      const normId = (typeof ensureDevId==='function') ? ensureDevId(dev.id) : (dev.id||'').trim();
+      const before = (typeof triResByDev!=='undefined') ? triResByDev.get(normId) : null;
+
+      try{
+        const r = await __origFetch(dev, idx);
+
+        // A1) Ensure last sync time exists (if server didn't provide time)
+        try{
+          if (typeof lastSeenByDev !== 'undefined'){
+            const cur = lastSeenByDev.get(normId);
+            if (!(Number.isFinite(cur))) lastSeenByDev.set(normId, Date.now());
+          }
+        }catch(_){}
+
+        // A2) Extract Active_Time_Sec from the same endpoint (if helpers exist)
+        try{
+          if (typeof streamsUrl==='function' && typeof headersFor==='function' && typeof fetchFavoriot==='function'){
+            const url = streamsUrl(dev);
+            const headers = headersFor();
+            let resp = await fetchFavoriot(url, headers, {attempt:0, viaDefaultProxy:false});
+            let txt = await resp.text(); let j=null; try{ j=JSON.parse(txt); }catch{}
+            if (!resp.ok){
+              try{
+                await new Promise(res=>setTimeout(res, 300));
+                resp = await fetchFavoriot(url, headers, {attempt:0, viaDefaultProxy:false});
+                txt = await resp.text(); j=null; try{ j=JSON.parse(txt); }catch{}
+              }catch(_){}
+            }
+            // Favoriot-like "latest record"
+            let last = null;
+            if (j) {
+              if (Array.isArray(j.data) && j.data.length) last = j.data[0];
+              else if (Array.isArray(j.results) && j.results.length) last = j.results[0];
+              else if (j.last) last = j.last;
+            }
+            const data = last?.data || {};
+            const scan = data?.Beacon_Triangulation || data?.Beacon || null;
+
+            const activeSec = extractActiveSec(data, scan);
+            if (activeSec!=null) window.activeSecByDev.set(normId, activeSec);
+          }
+        }catch(_){}
+
+        // A3) Persist last good trilat; if we lost it, revert to last-known-good
+        try{
+          const after = (typeof triResByDev!=='undefined') ? triResByDev.get(normId) : null;
+          if (trilatIsValid(after, need)){
+            window.lastGoodPosByDev.set(normId, {
+              lat: Number(after.tlat), lon: Number(after.tlon),
+              used: Number(after.used)||need, ts: Date.now()
+            });
+            saveLastGood();
+          } else {
+            const usedFallback = applyFallback(normId, need);
+            if (!usedFallback && trilatIsValid(before, need)){
+              if (typeof triResByDev!=='undefined') triResByDev.set(normId, before);
+            }
+          }
+        }catch(_){}
+
+        return r;
+      }catch(e){
+        // On fetch error: keep marker on map with last known position
+        try{
+          if (!applyFallback(normId, need) && trilatIsValid(before, need)){
+            if (typeof triResByDev!=='undefined') triResByDev.set(normId, before);
+          }
+        }catch(_){}
+        console.warn('Fetch error preserved marker for', normId, e);
+        return; // don't rethrow, keep UI alive
+      }
+    };
+  }
+
+  // -----------------------------------------------------------------
+  // 2) Override computeStatus to pure time-based state (as requested)
+  // -----------------------------------------------------------------
+  if (typeof window.computeStatus === 'function' && !window.__overrodeComputeStatus){
+    window.__overrodeComputeStatus = true;
+    window.computeStatus = function(normId){
+      const last = (typeof lastSeenByDev!=='undefined') ? lastSeenByDev.get(normId) : undefined;
+      const delta = last ? (Date.now()-last) : Infinity;
+
+      const sleepSec = (typeof sleepSecByDev!=='undefined') ? (sleepSecByDev.get(normId) ?? null) : null;
+      const sleepMs  = sleepSec ? sleepSec*1000 : (typeof CONFIG!=='undefined' ? CONFIG.staleMs : 20*60*1000);
+
+      const activeSec = (typeof activeSecByDev!=='undefined') ? (activeSecByDev.get(normId) ?? null) : null;
+      const graceMs   = activeSec ? activeSec*1000 : (typeof SLEEP_GRACE_MS!=='undefined' ? SLEEP_GRACE_MS : 20000);
+
+      const withinActive = Number.isFinite(delta) && delta <= graceMs;
+      const withinSleep  = Number.isFinite(delta) && delta <= sleepMs;
+
+      const sleeping = !withinActive && withinSleep;
+      const offline  = !withinSleep;
+      const online   = withinActive && !offline && !sleeping;
+
+      return { online, sleeping, offline, delta, sleepSec };
+    };
+  }
+
+  // -----------------------------------------------------------------------------------
+  // 3) Badge tweak: Online + fewer than min beacons => "Online — no trilateration"
+  // -----------------------------------------------------------------------------------
+  if (typeof window.refreshHealthDots === 'function' && !window.__wrappedRefreshHealthDots){
+    const _origRefresh = window.refreshHealthDots;
+    window.__wrappedRefreshHealthDots = true;
+
+    window.refreshHealthDots = function(){
+      _origRefresh();
+      try{
+        const list = (typeof loadDevices==='function') ? loadDevices() : [];
+        const need = (typeof CONFIG!=='undefined' && Number.isFinite(CONFIG.trilatMinBeacons)) ? CONFIG.trilatMinBeacons : 3;
+        list.forEach((d,i)=>{
+          const norm = (typeof ensureDevId==='function') ? ensureDevId(d.id) : (d.id||'').trim();
+          const st = (typeof computeStatus==='function') ? computeStatus(norm) : {online:false};
+          if(st && st.online){
+            const tri = (typeof triResByDev!=='undefined') ? triResByDev.get(norm) : null;
+            const used = tri && Number.isFinite(tri.used) ? tri.used : 0;
+            if (used < need){
+              const lbl = document.getElementById(`ol-${i}`);
+              if (lbl){
+                lbl.textContent = 'Online — no trilateration';
+                // keep Online color
+                lbl.className='badge ms-2 bg-success-subtle text-success-emphasis';
+              }
+            }
+          }
+        });
+      }catch(_){}
+    };
+  }
+
+  // -------------------------------------------------------------------
+  // 4) On initial load, show last-known-good positions if none present
+  // -------------------------------------------------------------------
+  try{
+    if (typeof loadDevices==='function' && typeof triResByDev!=='undefined'){
+      const list = loadDevices() || [];
+      const need = (typeof CONFIG!=='undefined' && Number.isFinite(CONFIG.trilatMinBeacons)) ? CONFIG.trilatMinBeacons : 3;
+      list.forEach(d=>{
+        const normId = (typeof ensureDevId==='function') ? ensureDevId(d.id) : (d.id||'').trim();
+        const cur = triResByDev.get(normId);
+        if (!trilatIsValid(cur, need)) applyFallback(normId, need);
+      });
+    }
+  }catch(_){}
+})();
+</script>
+<!-- === END: Full Fix Patch === -->
+</body>
+</html>
