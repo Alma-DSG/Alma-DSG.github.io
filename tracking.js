@@ -119,6 +119,7 @@ const healthByDev=new Map();
 const batteryByDev=new Map();
 const lastSeenByDev=new Map();
 const lastFetchByDev=new Map(); // wall-clock time of last successful fetch with NEW data
+const lastPacketKeyByDev=new Map(); // fingerprint/id of last packet to detect NEW data
 const stateByDev=new Map();
 const tempByDev=new Map();
 const offlineReasonByDev=new Map();
@@ -195,20 +196,17 @@ function computeStatus(normId){
   const delta = last ? (Date.now()-last) : Infinity;
   const sleepSec = sleepSecByDev.get(normId) ?? null;
   const sleepMs = sleepSec ? sleepSec*1000 : CONFIG.staleMs;
-  const enoughBeacons = (healthByDev.get(normId) === true);
+  const enoughBeacons = (healthByDev.get(normId)!==false);
 
-  // Use wall-clock fetch time for Online window so new data always triggers Online
+  // Online is based on when NEW data arrived (wall-clock), not just the packet timestamp
   const lastFetch = lastFetchByDev.get(normId);
   const fetchDelta = lastFetch ? (Date.now()-lastFetch) : Infinity;
   const recentFetch = Number.isFinite(fetchDelta) && fetchDelta <= SLEEP_GRACE_MS;
 
-  // offline is purely time-based — beacon count only affects the Online label text
-  const offline = (delta > sleepMs);
-  // Online: new data arrived recently (within grace period since last fetch)
-  const online = !offline && recentFetch;
-  // Sleeping: within sleep window, NOT recently fetched new data, not offline
-  const sleeping = !offline && !online && (sleepSec!=null) && delta <= sleepMs;
-  return { online, sleeping, offline, enoughBeacons, delta, sleepSec };
+  const offline = (!enoughBeacons) || (delta > sleepMs);
+  const sleeping = !offline && (sleepSec!=null) && !recentFetch && delta > SLEEP_GRACE_MS && delta <= sleepMs;
+  const online = !offline && !sleeping && (recentFetch || (Number.isFinite(delta) && delta <= SLEEP_GRACE_MS));
+  return { online, sleeping, offline, delta, sleepSec };
 }
 function statusDotColor(normId){ const st=computeStatus(normId); return st.offline ? '#c62828' : (st.sleeping ? '#f9a825' : '#2e7d32'); }
 
@@ -970,16 +968,26 @@ async function fetchOneDeviceLatest(dev, idx){
     const sleepSec = extractSleepSec(last?.data||{}, scan);
 
     const normId=ensureDevId(dev.id);
-    const ts = time ? Date.parse(time) : NaN;
-    if(Number.isFinite(ts)){
-      const prevTs = lastSeenByDev.get(normId);
-      lastSeenByDev.set(normId, ts);
-      // Mark fetch time whenever we get a new (or first) data packet
-      if(prevTs !== ts) lastFetchByDev.set(normId, Date.now());
-    } else {
-      lastSeenByDev.set(normId, undefined);
+
+    // Detect "NEW data" robustly (prefer a stream id if present; fallback to time+data fingerprint)
+    let packetKey = null;
+    if(last && typeof last === 'object'){
+      packetKey = (last.stream_id ?? last.streamId ?? last.id ?? last._id ?? last.uuid ?? null);
+      if(packetKey != null) packetKey = String(packetKey);
+      else {
+        let dataKey = '';
+        try{ dataKey = JSON.stringify(last.data ?? null); }catch(_){ dataKey = ''; }
+        packetKey = `${time ?? ''}|${dataKey}`;
+      }
+    }
+    const prevKey = lastPacketKeyByDev.get(normId);
+    if(packetKey && packetKey !== prevKey){
+      lastPacketKeyByDev.set(normId, packetKey);
+      lastFetchByDev.set(normId, Date.now());
     }
 
+    const ts = time ? Date.parse(time) : NaN;
+    if(Number.isFinite(ts)) lastSeenByDev.set(normId, ts); else lastSeenByDev.set(normId, undefined);
     batteryByDev.set(normId, batt);
     stateByDev.set(normId, state);
     tempByDev.set(normId, tempC);
@@ -1659,19 +1667,11 @@ init();
       const withinActive = Number.isFinite(delta) && delta <= graceMs;
       const withinSleep  = Number.isFinite(delta) && delta <= sleepMs;
 
-      // Use wall-clock fetch time for Online window so new data always triggers Online
-      const lastFetch = (typeof lastFetchByDev!=='undefined') ? lastFetchByDev.get(normId) : undefined;
-      const fetchDelta = lastFetch ? (Date.now()-lastFetch) : Infinity;
-      const recentFetch = Number.isFinite(fetchDelta) && fetchDelta <= graceMs;
-
+      const sleeping = !withinActive && withinSleep;
       const offline  = !withinSleep;
-      // Online: new data arrived recently (within grace period since last fetch)
-      const online   = !offline && recentFetch;
-      // Sleeping: within sleep window, NOT recently fetched new data, not offline
-      const sleeping = !offline && !online && withinSleep;
+      const online   = withinActive && !offline && !sleeping;
 
-      const enoughBeacons = (typeof healthByDev!=='undefined') ? (healthByDev.get(normId) === true) : false;
-      return { online, sleeping, offline, enoughBeacons, delta, sleepSec };
+      return { online, sleeping, offline, delta, sleepSec };
     };
   }
 
