@@ -84,7 +84,7 @@ function cacheTriResult(normId, res){
 })();
 
 const CONFIG = { trailPoints: 25, trilatMinBeacons: 3, staleMs: 20*60*1000 };
-const SLEEP_GRACE_MS = 60000; // 60s grace after last packet before showing Sleep
+const SLEEP_GRACE_MS = 10000; // 10s grace after last packet before showing Sleep
 
 /* ================= Map & panes ================= */
 let map;
@@ -1747,3 +1747,4 @@ init();
     else console.warn('Map initialization was triggered again; consider guarding init.');
   } catch(_){}
 })();
+
