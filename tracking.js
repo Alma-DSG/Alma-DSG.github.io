@@ -84,7 +84,7 @@ function cacheTriResult(normId, res){
 })();
 
 const CONFIG = { trailPoints: 25, trilatMinBeacons: 3, staleMs: 20*60*1000 };
-const SLEEP_GRACE_MS = 10000; // 10s grace after last packet before showing Sleep
+const SLEEP_GRACE_MS = 20000; // 20s grace after last packet before showing Sleep
 
 /* ================= Map & panes ================= */
 let map;
@@ -118,6 +118,7 @@ const triResByDev=new Map();
 const healthByDev=new Map();
 const batteryByDev=new Map();
 const lastSeenByDev=new Map();
+const lastFetchByDev=new Map(); // wall-clock time of last successful fetch with NEW data
 const stateByDev=new Map();
 const tempByDev=new Map();
 const offlineReasonByDev=new Map();
@@ -194,11 +195,20 @@ function computeStatus(normId){
   const delta = last ? (Date.now()-last) : Infinity;
   const sleepSec = sleepSecByDev.get(normId) ?? null;
   const sleepMs = sleepSec ? sleepSec*1000 : CONFIG.staleMs;
-  const enoughBeacons = (healthByDev.get(normId)!==false);
-  const sleeping = (sleepSec!=null) && delta > SLEEP_GRACE_MS && delta <= sleepMs;
-  const offline = (!enoughBeacons) || (delta > sleepMs);
-  const online = !offline && !sleeping && Number.isFinite(delta) && delta <= SLEEP_GRACE_MS;
-  return { online, sleeping, offline, delta, sleepSec };
+  const enoughBeacons = (healthByDev.get(normId) === true);
+
+  // Use wall-clock fetch time for Online window so new data always triggers Online
+  const lastFetch = lastFetchByDev.get(normId);
+  const fetchDelta = lastFetch ? (Date.now()-lastFetch) : Infinity;
+  const recentFetch = Number.isFinite(fetchDelta) && fetchDelta <= SLEEP_GRACE_MS;
+
+  // offline is purely time-based — beacon count only affects the Online label text
+  const offline = (delta > sleepMs);
+  // Online: new data arrived recently (within grace period since last fetch)
+  const online = !offline && recentFetch;
+  // Sleeping: within sleep window, NOT recently fetched new data, not offline
+  const sleeping = !offline && !online && (sleepSec!=null) && delta <= sleepMs;
+  return { online, sleeping, offline, enoughBeacons, delta, sleepSec };
 }
 function statusDotColor(normId){ const st=computeStatus(normId); return st.offline ? '#c62828' : (st.sleeping ? '#f9a825' : '#2e7d32'); }
 
@@ -961,7 +971,14 @@ async function fetchOneDeviceLatest(dev, idx){
 
     const normId=ensureDevId(dev.id);
     const ts = time ? Date.parse(time) : NaN;
-    if(Number.isFinite(ts)) lastSeenByDev.set(normId, ts); else lastSeenByDev.set(normId, undefined);
+    if(Number.isFinite(ts)){
+      const prevTs = lastSeenByDev.get(normId);
+      lastSeenByDev.set(normId, ts);
+      // Mark fetch time whenever we get a new (or first) data packet
+      if(prevTs !== ts) lastFetchByDev.set(normId, Date.now());
+    } else {
+      lastSeenByDev.set(normId, undefined);
+    }
 
     batteryByDev.set(normId, batt);
     stateByDev.set(normId, state);
@@ -1642,11 +1659,19 @@ init();
       const withinActive = Number.isFinite(delta) && delta <= graceMs;
       const withinSleep  = Number.isFinite(delta) && delta <= sleepMs;
 
-      const sleeping = !withinActive && withinSleep;
-      const offline  = !withinSleep;
-      const online   = withinActive && !offline && !sleeping;
+      // Use wall-clock fetch time for Online window so new data always triggers Online
+      const lastFetch = (typeof lastFetchByDev!=='undefined') ? lastFetchByDev.get(normId) : undefined;
+      const fetchDelta = lastFetch ? (Date.now()-lastFetch) : Infinity;
+      const recentFetch = Number.isFinite(fetchDelta) && fetchDelta <= graceMs;
 
-      return { online, sleeping, offline, delta, sleepSec };
+      const offline  = !withinSleep;
+      // Online: new data arrived recently (within grace period since last fetch)
+      const online   = !offline && recentFetch;
+      // Sleeping: within sleep window, NOT recently fetched new data, not offline
+      const sleeping = !offline && !online && withinSleep;
+
+      const enoughBeacons = (typeof healthByDev!=='undefined') ? (healthByDev.get(normId) === true) : false;
+      return { online, sleeping, offline, enoughBeacons, delta, sleepSec };
     };
   }
 
@@ -1747,4 +1772,3 @@ init();
     else console.warn('Map initialization was triggered again; consider guarding init.');
   } catch(_){}
 })();
-
